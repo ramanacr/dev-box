@@ -1,0 +1,32 @@
+{
+  "id": "core",
+  "version": "0.1.0",
+  "database": "docs.db",
+  "sha256": "1f4081c7d390df7ac69cc43e26bba7a86a95ccd365d74e1e079e69c844393d58",
+  "sources": [
+    {
+      "name": "Microsoft Learn (ASP.NET Core)",
+      "url": "https://learn.microsoft.com/aspnet/core/",
+      "license": "CC-BY-4.0",
+      "attribution": "Documentation derived from Microsoft Learn, licensed under CC BY 4.0."
+    },
+    {
+      "name": "TypeScript Handbook",
+      "url": "https://www.typescriptlang.org/docs/",
+      "license": "Apache-2.0",
+      "attribution": "Documentation derived from TypeScript Handbook, licensed under Apache-2.0."
+    },
+    {
+      "name": "Git Documentation",
+      "url": "https://git-scm.com/doc",
+      "license": "GPLv2, MIT",
+      "attribution": "Documentation derived from Git Documentation, licensed under GPLv2 and MIT."
+    },
+    {
+      "name": "Docker Documentation",
+      "url": "https://docs.docker.com/",
+      "license": "Apache-2.0",
+      "attribution": "Documentation derived from Docker Docs, licensed under Apache-2.0."
+    }
+  ]
+}

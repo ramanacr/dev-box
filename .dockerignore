@@ -1,0 +1,9 @@
+.git
+.github
+node_modules
+apps/web/node_modules
+apps/web/dist
+coverage
+test-results
+playwright-report
+*.md

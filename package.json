@@ -1,0 +1,12 @@
+{
+  "name": "developer-toolbox",
+  "private": true,
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "lint": "pnpm --filter @toolbox/web lint",
+    "test": "pnpm --filter @toolbox/web test",
+    "build": "pnpm --filter @toolbox/web build",
+    "e2e": "pnpm --filter @toolbox/web e2e",
+    "pack:build": "node scripts/build-pack.mjs"
+  }
+}

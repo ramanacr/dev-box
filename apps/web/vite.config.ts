@@ -15,9 +15,11 @@ export default defineConfig({
           if (id.includes('node_modules/fast-xml-parser')) return 'xml-chunk';
           if (id.includes('node_modules/papaparse')) return 'csv-chunk';
           if (id.includes('node_modules/idb')) return 'idb-chunk';
+          if (id.includes('node_modules/ajv')) return 'ajv-chunk';
         },
       },
     },
+
   },
   resolve: {
     alias: {

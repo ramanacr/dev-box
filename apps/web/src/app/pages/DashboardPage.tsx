@@ -34,7 +34,21 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       description: 'Render beautiful, configurable code cards with syntax highlighting and window chrome. Export safely to SVG and PNG.',
       badge: 'SVG / Canvas',
     },
+    {
+      title: 'API Workbench',
+      path: '/api',
+      description: 'Inspect OpenAPI 3.0/3.1 contracts, configure session-only environments, compose requests, and validate response schemas offline.',
+      badge: 'OpenAPI / Guarded',
+    },
+    {
+      title: 'Diagrams Studio',
+      path: '/diagrams',
+      description: 'Create architecture, sequence, class, and ER diagrams with Mermaid or sketch ideas on a local whiteboard canvas.',
+      badge: 'Mermaid / Canvas',
+    },
   ];
+
+
 
   return (
     <section aria-labelledby="dashboard-heading">

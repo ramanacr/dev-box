@@ -1,11 +1,12 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 export class StorageUnavailableError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
+  constructor(message: string, public override readonly cause?: unknown) {
     super(message);
     this.name = 'StorageUnavailableError';
   }
 }
+
 
 const DB_NAME = 'toolbox-db';
 const DB_VERSION = 1;

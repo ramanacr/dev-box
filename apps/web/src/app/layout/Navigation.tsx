@@ -29,7 +29,11 @@ export function Navigation({ currentPath, onNavigate }: NavProps) {
     { path: '/regex', label: 'Regex' },
     { path: '/text', label: 'Text & Hashes' },
     { path: '/code-image', label: 'Code Image' },
+    { path: '/api', label: 'API Workbench' },
+    { path: '/diagrams', label: 'Diagrams' },
   ];
+
+
 
   return (
     <header className="app-header">

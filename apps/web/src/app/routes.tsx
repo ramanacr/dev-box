@@ -7,6 +7,8 @@ const DataPage = lazy(() => import('@/modules/data/DataPage').then((m) => ({ def
 const RegexPage = lazy(() => import('@/modules/regex/RegexPage').then((m) => ({ default: m.RegexPage })));
 const TextPage = lazy(() => import('@/modules/text/TextPage').then((m) => ({ default: m.TextPage })));
 const CodeImagePage = lazy(() => import('@/modules/code-image/CodeImagePage').then((m) => ({ default: m.CodeImagePage })));
+const ApiPage = lazy(() => import('@/modules/api/ApiPage').then((m) => ({ default: m.ApiPage })));
+const DiagramPage = lazy(() => import('@/modules/diagrams/DiagramPage').then((m) => ({ default: m.DiagramPage })));
 
 interface RouterViewProps {
   currentPath: string;
@@ -33,6 +35,13 @@ export function RouterView({ currentPath, onNavigate }: RouterViewProps) {
     if (currentPath.startsWith('/code-image')) {
       return <CodeImagePage />;
     }
+    if (currentPath.startsWith('/api')) {
+      return <ApiPage />;
+    }
+    if (currentPath.startsWith('/diagrams')) {
+      return <DiagramPage />;
+    }
+
 
     // Default 404 fallback
     return (

@@ -52,9 +52,11 @@ export function DocsUploadModal({
     setDragOver(false);
     if (e.dataTransfer && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      setSelectedFile(file);
-      if (!titleInput) {
-        setTitleInput(file.name.replace(/\.[^/.]+$/, ''));
+      if (file) {
+        setSelectedFile(file);
+        if (!titleInput) {
+          setTitleInput(file.name.replace(/\.[^/.]+$/, ''));
+        }
       }
     }
   };
@@ -63,12 +65,15 @@ export function DocsUploadModal({
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       const file = input.files[0];
-      setSelectedFile(file);
-      if (!titleInput) {
-        setTitleInput(file.name.replace(/\.[^/.]+$/, ''));
+      if (file) {
+        setSelectedFile(file);
+        if (!titleInput) {
+          setTitleInput(file.name.replace(/\.[^/.]+$/, ''));
+        }
       }
     }
   };
+
 
   const handleUpload = async (e: Event) => {
     e.preventDefault();

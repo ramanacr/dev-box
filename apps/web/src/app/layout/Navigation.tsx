@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { applyTheme, getStoredTheme, type ThemeMode } from '../../platform/theme/theme';
 
 interface NavProps {
   currentPath: string;
@@ -7,6 +8,7 @@ interface NavProps {
 
 export function Navigation({ currentPath, onNavigate }: NavProps) {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
 
   useEffect(() => {
     const updateStatus = () => {
@@ -22,6 +24,13 @@ export function Navigation({ currentPath, onNavigate }: NavProps) {
     };
   }, []);
 
+  const handleThemeChange = (e: Event) => {
+    const target = e.target as HTMLSelectElement;
+    const newTheme = target.value as ThemeMode;
+    setTheme(newTheme);
+    applyTheme(newTheme);
+  };
+
   const navItems = [
     { path: '/', label: 'Overview' },
     { path: '/docs', label: 'Docs' },
@@ -31,9 +40,9 @@ export function Navigation({ currentPath, onNavigate }: NavProps) {
     { path: '/code-image', label: 'Code Image' },
     { path: '/api', label: 'API Workbench' },
     { path: '/diagrams', label: 'Diagrams' },
+    { path: '/git', label: 'Git Learning' },
+    { path: '/algorithms', label: 'Algorithms' },
   ];
-
-
 
   return (
     <header className="app-header">
@@ -71,9 +80,23 @@ export function Navigation({ currentPath, onNavigate }: NavProps) {
         </ul>
       </nav>
 
-      <div className="status-indicator" title={isOnline ? 'Network available' : 'Offline mode active (workbench functions locally)'}>
-        <span className={`status-dot ${isOnline ? '' : 'offline'}`} />
-        <span>{isOnline ? 'Online' : 'Offline'}</span>
+      <div className="header-actions">
+        <select
+          className="theme-select"
+          value={theme}
+          onChange={handleThemeChange}
+          aria-label="Theme mode"
+          title="Select theme: Light, Dark, or System"
+        >
+          <option value="system">💻 System</option>
+          <option value="light">☀️ Light</option>
+          <option value="dark">🌙 Dark</option>
+        </select>
+
+        <div className="status-indicator" title={isOnline ? 'Network available' : 'Offline mode active (workbench functions locally)'}>
+          <span className={`status-dot ${isOnline ? '' : 'offline'}`} />
+          <span>{isOnline ? 'Online' : 'Offline'}</span>
+        </div>
       </div>
     </header>
   );

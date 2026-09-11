@@ -46,6 +46,18 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       description: 'Create architecture, sequence, class, and ER diagrams with Mermaid or sketch ideas on a local whiteboard canvas.',
       badge: 'Mermaid / Canvas',
     },
+    {
+      title: 'Git Learning Sandbox',
+      path: '/git',
+      description: 'Master Git branching, merging, rebasing, and cherry-picking with an interactive DAG graph simulation and guided lessons.',
+      badge: 'DAG / Sandbox',
+    },
+    {
+      title: 'Algorithm Visualizer',
+      path: '/algorithms',
+      description: 'Step through Bubble Sort, Merge Sort, BFS, and Dijkstra algorithms with visual representations and state tables.',
+      badge: 'Interactive / SVG',
+    },
   ];
 
 

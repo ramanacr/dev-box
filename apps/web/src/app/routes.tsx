@@ -9,6 +9,8 @@ const TextPage = lazy(() => import('@/modules/text/TextPage').then((m) => ({ def
 const CodeImagePage = lazy(() => import('@/modules/code-image/CodeImagePage').then((m) => ({ default: m.CodeImagePage })));
 const ApiPage = lazy(() => import('@/modules/api/ApiPage').then((m) => ({ default: m.ApiPage })));
 const DiagramPage = lazy(() => import('@/modules/diagrams/DiagramPage').then((m) => ({ default: m.DiagramPage })));
+const GitSandboxPage = lazy(() => import('@/modules/learning/git/GitSandboxPage').then((m) => ({ default: m.GitSandboxPage })));
+const AlgorithmPage = lazy(() => import('@/modules/learning/algorithms/AlgorithmPage').then((m) => ({ default: m.AlgorithmPage })));
 
 interface RouterViewProps {
   currentPath: string;
@@ -40,6 +42,12 @@ export function RouterView({ currentPath, onNavigate }: RouterViewProps) {
     }
     if (currentPath.startsWith('/diagrams')) {
       return <DiagramPage />;
+    }
+    if (currentPath.startsWith('/git')) {
+      return <GitSandboxPage />;
+    }
+    if (currentPath.startsWith('/algorithms')) {
+      return <AlgorithmPage />;
     }
 
 

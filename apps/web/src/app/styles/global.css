@@ -20,6 +20,24 @@
   --radius-lg: 8px;
 }
 
+:root[data-effective-theme="light"],
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --border-color: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --accent-primary: #0284c7;
+  --accent-hover: #0369a1;
+  --accent-bg: rgba(2, 132, 199, 0.1);
+  --success-color: #16a34a;
+  --warning-color: #d97706;
+  --danger-color: #dc2626;
+  --code-bg: #f1f5f9;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -125,6 +143,22 @@ a:hover {
   color: #fff;
   background-color: var(--accent-primary);
   color: #000;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.theme-select {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
 }
 
 .status-indicator {

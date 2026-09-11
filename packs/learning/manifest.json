@@ -1,0 +1,12 @@
+{
+  "name": "learning-algorithms-git",
+  "version": "1.0.0",
+  "title": "Interactive Git and Algorithms Visual Learning Pack",
+  "description": "Visual sandboxes for exploring Git DAG branching/rebasing and sorting/graph algorithms offline.",
+  "license": "MIT",
+  "attribution": "Developer Toolbox Open Source Project",
+  "modules": [
+    "git-graph-sandbox",
+    "algorithm-visualizer"
+  ]
+}

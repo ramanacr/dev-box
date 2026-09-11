@@ -22,6 +22,10 @@ A lightweight, offline-capable developer workbench for Docker that consolidates 
 8. **Developer Utilities**: URL and Base64 encoders/decoders, HTML entity escaping, line sorter and deduplicator, case conversion, Web Crypto SHA-256/SHA-512 hashes, UUID v4 generator, and Unix timestamp converter.
 9. **Secret Redaction Engine**: Automatic pattern-based scanning for credentials (tokens, passwords, API keys, database connection strings) before file download.
 10. **Code Image Exporter**: Syntax-highlighted code cards with window chrome, whitespace and indentation preservation (`xml:space="preserve"`), tab expansion, and customizable themes, exporting locally to SVG and PNG.
+11. **Git Learning Sandbox**: In-browser Git DAG graph simulation supporting commits, branching, switching, merging, rebasing, resetting, reverting, and cherry-picking with progressive challenge lessons.
+12. **Algorithm Visualizer**: Interactive step-by-step visualizations of Bubble Sort, Merge Sort, BFS, and Dijkstra algorithms with accessible state tracking.
+13. **Light / Dark / System Theme Switcher**: Full theme customization across all tools with auto-system color scheme detection and persistent preference storage.
+14. **Optional Team Workspaces**: Opt-in asynchronous shared workspaces with OIDC authentication, SQLite WAL metadata storage (`workspace.db`), and RBAC authorization (`viewer`, `editor`, `admin`).
 
 ## Quick Start
 

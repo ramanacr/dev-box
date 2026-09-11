@@ -13,6 +13,7 @@ import (
 
 	"developer-toolbox/internal/config"
 	"developer-toolbox/internal/docs"
+	"developer-toolbox/internal/team"
 )
 
 // ResponseWriter wrapper to capture status code for logging.
@@ -243,6 +244,10 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS) http.Han
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "id": id})
 	})
+
+	// Team mode routes
+	teamHandler := NewTeamHandler(team.Config{Enabled: false}, nil)
+	teamHandler.RegisterRoutes(mux)
 
 	// Static assets and SPA routing
 	if assets != nil {

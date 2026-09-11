@@ -1,0 +1,13 @@
+{
+  "name": "@toolbox/mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for local Developer Toolbox integration",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
+  }
+}

@@ -164,6 +164,12 @@ importers:
         specifier: ^3.0.7
         version: 3.2.7(@types/node@22.20.1)(jsdom@26.1.0(supports-color@7.2.0))(supports-color@7.2.0)(yaml@2.9.0)
 
+  packages/mcp-server:
+    devDependencies:
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7
+
 packages:
 
   '@antfu/install-pkg@2.0.1':

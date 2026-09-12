@@ -17,6 +17,30 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       badge: 'Web Worker',
     },
     {
+      title: 'Command Reference',
+      path: '/command',
+      description: 'Explain a shell command token by token, with warnings for destructive flags. Nothing is executed — it is static analysis of the text you paste.',
+      badge: 'Explainer',
+    },
+    {
+      title: 'JSON Query',
+      path: '/query',
+      description: 'Run JSONPath expressions over a document with filters, slices and recursive descent. Filter expressions are parsed, never evaluated as code.',
+      badge: 'JSONPath',
+    },
+    {
+      title: 'Type Generator',
+      path: '/types',
+      description: 'Turn a JSON sample into type declarations for TypeScript, C#, Java, Kotlin, Go, Python and Rust, with optional and nullable fields inferred.',
+      badge: '7 languages',
+    },
+    {
+      title: 'JWT Inspector',
+      path: '/jwt',
+      description: 'Decode a JSON Web Token to read its header, claims and timing. Decode only — no signature verification and no validity claim.',
+      badge: 'Decode only',
+    },
+    {
       title: 'Regex Workbench',
       path: '/regex',
       description: 'Test ECMAScript regular expressions with real-time match highlights, capture group extraction, and replacement preview.',
@@ -36,7 +60,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     },
     {
       title: 'API Workbench',
-      path: '/api',
+      path: '/api-workbench',
       description: 'Inspect OpenAPI 3.0/3.1 contracts, configure session-only environments, compose requests, and validate response schemas offline.',
       badge: 'OpenAPI / Guarded',
     },

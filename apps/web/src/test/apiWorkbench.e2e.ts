@@ -9,7 +9,7 @@ const __dirname = resolve(__filename, '..');
 
 test.describe('API Workbench - E2E Suite', () => {
   test('imports OpenAPI fixture, inspects operations, and previews endpoints', async ({ page }) => {
-    await page.goto('/api');
+    await page.goto('/api-workbench');
     await expect(page.getByRole('heading', { name: 'API Workbench' })).toBeVisible();
     await expect(page.getByText('Import OpenAPI Specification')).toBeVisible();
 

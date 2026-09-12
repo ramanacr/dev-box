@@ -31,17 +31,48 @@ export function Navigation({ currentPath, onNavigate }: NavProps) {
     applyTheme(newTheme);
   };
 
+  // Team controls appear only when the server reports team mode, matching the Phase 3
+  // requirement that the anonymous localhost profile shows no shared-workspace UI.
+  const [teamEnabled, setTeamEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/team/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setTeamEnabled(data?.enabled === true);
+      })
+      .catch(() => {
+        // Team mode stays hidden when the probe cannot be reached.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const navItems = [
     { path: '/', label: 'Overview' },
     { path: '/docs', label: 'Docs' },
     { path: '/data', label: 'Data Workbench' },
+    { path: '/command', label: 'Commands' },
     { path: '/regex', label: 'Regex' },
     { path: '/text', label: 'Text & Hashes' },
+    { path: '/query', label: 'JSON Query' },
+    { path: '/types', label: 'Types' },
+    { path: '/jwt', label: 'JWT' },
     { path: '/code-image', label: 'Code Image' },
-    { path: '/api', label: 'API Workbench' },
+    { path: '/api-workbench', label: 'API Workbench' },
     { path: '/diagrams', label: 'Diagrams' },
     { path: '/git', label: 'Git Learning' },
     { path: '/algorithms', label: 'Algorithms' },
+    ...(teamEnabled
+      ? [
+          { path: '/team', label: 'Team' },
+          { path: '/admin', label: 'Admin' },
+        ]
+      : []),
   ];
 
   return (

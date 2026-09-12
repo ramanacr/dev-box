@@ -11,6 +11,12 @@ const ApiPage = lazy(() => import('@/modules/api/ApiPage').then((m) => ({ defaul
 const DiagramPage = lazy(() => import('@/modules/diagrams/DiagramPage').then((m) => ({ default: m.DiagramPage })));
 const GitSandboxPage = lazy(() => import('@/modules/learning/git/GitSandboxPage').then((m) => ({ default: m.GitSandboxPage })));
 const AlgorithmPage = lazy(() => import('@/modules/learning/algorithms/AlgorithmPage').then((m) => ({ default: m.AlgorithmPage })));
+const CommandPage = lazy(() => import('@/modules/command/CommandPage').then((m) => ({ default: m.CommandPage })));
+const JwtPage = lazy(() => import('@/modules/jwt/JwtPage').then((m) => ({ default: m.JwtPage })));
+const QueryPage = lazy(() => import('@/modules/query/QueryPage').then((m) => ({ default: m.QueryPage })));
+const TypesPage = lazy(() => import('@/modules/types/TypesPage').then((m) => ({ default: m.TypesPage })));
+const WorkspacePage = lazy(() => import('@/modules/team/WorkspacePage').then((m) => ({ default: m.WorkspacePage })));
+const AdminPage = lazy(() => import('@/modules/team/AdminPage').then((m) => ({ default: m.AdminPage })));
 
 interface RouterViewProps {
   currentPath: string;
@@ -37,7 +43,7 @@ export function RouterView({ currentPath, onNavigate }: RouterViewProps) {
     if (currentPath.startsWith('/code-image')) {
       return <CodeImagePage />;
     }
-    if (currentPath.startsWith('/api')) {
+    if (currentPath.startsWith('/api-workbench')) {
       return <ApiPage />;
     }
     if (currentPath.startsWith('/diagrams')) {
@@ -48,6 +54,24 @@ export function RouterView({ currentPath, onNavigate }: RouterViewProps) {
     }
     if (currentPath.startsWith('/algorithms')) {
       return <AlgorithmPage />;
+    }
+    if (currentPath.startsWith('/command')) {
+      return <CommandPage />;
+    }
+    if (currentPath.startsWith('/jwt')) {
+      return <JwtPage />;
+    }
+    if (currentPath.startsWith('/query')) {
+      return <QueryPage />;
+    }
+    if (currentPath.startsWith('/types')) {
+      return <TypesPage />;
+    }
+    if (currentPath.startsWith('/team')) {
+      return <WorkspacePage />;
+    }
+    if (currentPath.startsWith('/admin')) {
+      return <AdminPage />;
     }
 
 

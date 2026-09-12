@@ -11,6 +11,7 @@
     "build": "pnpm --filter @toolbox/web build && go build ./cmd/toolbox-server",
     "e2e": "pnpm --filter @toolbox/web e2e",
     "pack:build": "node scripts/build-pack.mjs",
+    "pack:build:core": "node scripts/build-core-pack.mjs",
     "budgets": "node scripts/check-budgets.mjs"
   }
 }

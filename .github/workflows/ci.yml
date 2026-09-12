@@ -71,6 +71,9 @@ jobs:
         with:
           go-version: '1.24'
       - run: pnpm install --frozen-lockfile
+      # The content pack is a build product, not a tracked file, so it has to be
+      # built before anything that reads it. The e2e suite searches it.
+      - run: pnpm pack:build:core
       - run: pnpm --filter @toolbox/web build
       - name: Install Playwright browsers
         run: pnpm --filter @toolbox/web exec playwright install --with-deps chromium
@@ -127,6 +130,12 @@ jobs:
     needs: [web-quality, server-quality]
     steps:
       - uses: actions/checkout@v4
+      # The Dockerfile copies packs/core/docs.db from the build context, and the
+      # pack is generated rather than tracked. node:sqlite needs Node 22.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/build-core-pack.mjs
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build image

@@ -12,9 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Version comes from package.json's packageManager field.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -62,9 +61,8 @@ jobs:
     needs: [web-quality, server-quality]
     steps:
       - uses: actions/checkout@v4
+      # Version comes from package.json's packageManager field.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -6,7 +6,9 @@ dist/
 # Go
 bin/
 *.exe
-toolbox-server
+# Root-anchored: an unanchored "toolbox-server" also matched the
+# cmd/toolbox-server/ source directory, which kept main.go out of the repo.
+/toolbox-server
 
 # Databases & runtime packs
 packs/core/docs.db

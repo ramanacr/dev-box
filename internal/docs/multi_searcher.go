@@ -132,3 +132,28 @@ func (m *MultiSearcher) Document(ctx context.Context, id string) (Document, erro
 func (m *MultiSearcher) UserStore() *UserStore {
 	return m.user
 }
+
+// Sources federates the source lists of the core pack and the user store, so the
+// UI's filter shows exactly what is searchable — including "user" only when uploads
+// actually exist.
+func (m *MultiSearcher) Sources(ctx context.Context) ([]SourceSummary, error) {
+	summaries := make([]SourceSummary, 0, 12)
+
+	if lister, ok := m.core.(SourceLister); ok && m.core != nil {
+		coreSources, err := lister.Sources(ctx)
+		if err == nil {
+			summaries = append(summaries, coreSources...)
+		}
+		// A core failure is not fatal here: the user store may still have documents,
+		// and an empty filter is better than a failed page.
+	}
+
+	if m.user != nil && m.user.Ready() == nil {
+		userSources, err := m.user.Sources(ctx)
+		if err == nil {
+			summaries = append(summaries, userSources...)
+		}
+	}
+
+	return summaries, nil
+}

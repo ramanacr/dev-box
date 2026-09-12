@@ -48,30 +48,34 @@ CREATE TABLE IF NOT EXISTS user_documents (
   attribution TEXT NOT NULL,
   filename TEXT NOT NULL,
   byte_size INTEGER NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  -- Mirrors the content-pack schema so uploaded documents rank by the same rules.
+  -- Headings are extracted from the converted HTML; tags come from the filename.
+  headings TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT ''
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS user_document_fts USING fts5(
-  title, body_html, source,
+  title, headings, body_html, tags, source,
   content='user_documents', content_rowid='rowid',
   tokenize='unicode61 remove_diacritics 2'
 );
 
 CREATE TRIGGER IF NOT EXISTS user_documents_ai AFTER INSERT ON user_documents BEGIN
-  INSERT INTO user_document_fts(rowid, title, body_html, source)
-  VALUES (new.rowid, new.title, new.body_html, new.source);
+  INSERT INTO user_document_fts(rowid, title, headings, body_html, tags, source)
+  VALUES (new.rowid, new.title, new.headings, new.body_html, new.tags, new.source);
 END;
 
 CREATE TRIGGER IF NOT EXISTS user_documents_ad AFTER DELETE ON user_documents BEGIN
-  INSERT INTO user_document_fts(user_document_fts, rowid, title, body_html, source)
-  VALUES('delete', old.rowid, old.title, old.body_html, old.source);
+  INSERT INTO user_document_fts(user_document_fts, rowid, title, headings, body_html, tags, source)
+  VALUES('delete', old.rowid, old.title, old.headings, old.body_html, old.tags, old.source);
 END;
 
 CREATE TRIGGER IF NOT EXISTS user_documents_au AFTER UPDATE ON user_documents BEGIN
-  INSERT INTO user_document_fts(user_document_fts, rowid, title, body_html, source)
-  VALUES('delete', old.rowid, old.title, old.body_html, old.source);
-  INSERT INTO user_document_fts(rowid, title, body_html, source)
-  VALUES (new.rowid, new.title, new.body_html, new.source);
+  INSERT INTO user_document_fts(user_document_fts, rowid, title, headings, body_html, tags, source)
+  VALUES('delete', old.rowid, old.title, old.headings, old.body_html, old.tags, old.source);
+  INSERT INTO user_document_fts(rowid, title, headings, body_html, tags, source)
+  VALUES (new.rowid, new.title, new.headings, new.body_html, new.tags, new.source);
 END;
 `
 
@@ -158,10 +162,11 @@ func (u *UserStore) InsertDocument(ctx context.Context, input UserDocumentInput)
 	attribution := fmt.Sprintf("Uploaded from %s on %s", input.Filename, time.Now().Format("Jan 02, 2006"))
 
 	insertSQL := `
-		INSERT INTO user_documents (id, source, title, url, body_html, attribution, filename, byte_size)
-		VALUES (?, 'user', ?, ?, ?, ?, ?, ?);
+		INSERT INTO user_documents (id, source, title, url, body_html, attribution, filename, byte_size, headings, tags)
+		VALUES (?, 'user', ?, ?, ?, ?, ?, ?, ?, ?);
 	`
-	_, err := u.db.ExecContext(ctx, insertSQL, id, title, "/docs?id="+id, bodyHTML, attribution, input.Filename, byteSize)
+	_, err := u.db.ExecContext(ctx, insertSQL, id, title, "/docs?id="+id, bodyHTML, attribution,
+		input.Filename, byteSize, ExtractHeadings(bodyHTML), deriveTags(input.Filename, title))
 	if err != nil {
 		return nil, fmt.Errorf("failed to save user document: %w", err)
 	}
@@ -254,8 +259,8 @@ func (u *UserStore) Search(ctx context.Context, q Query) ([]SearchResult, error)
 
 	querySQL := `
 		SELECT d.id, d.title, d.url, d.source,
-		       snippet(user_document_fts, 1, '<mark>', '</mark>', '…', 16) AS snippet,
-		       bm25(user_document_fts, 8.0, 1.0, 2.0) AS score
+		       snippet(user_document_fts, 2, '<mark>', '</mark>', '…', 16) AS snippet,
+		       bm25(user_document_fts, 8.0, 4.0, 1.0, 2.0, 0.5) AS score
 		FROM user_document_fts
 		JOIN user_documents d ON d.rowid = user_document_fts.rowid
 		WHERE user_document_fts MATCH ?
@@ -385,4 +390,100 @@ func convertToHTML(content, filename string) string {
 
 func escapeHTML(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"), "\"", "&quot;")
+}
+
+// headingPattern matches h1-h4 elements in the converted HTML.
+var headingPattern = regexp.MustCompile(`(?is)<h[1-4][^>]*>(.*?)</h[1-4]>`)
+
+// tagPattern strips anything that is not a word character from a filename segment.
+var tagPattern = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+
+// ExtractHeadings pulls the section headings out of a document's HTML so they can be
+// indexed in their own FTS column and outrank prose.
+//
+// Exported so the pack builder and the upload path derive headings the same way; a
+// document that ranks differently depending on how it entered the index would be a
+// confusing result.
+func ExtractHeadings(bodyHTML string) string {
+	matches := headingPattern.FindAllStringSubmatch(bodyHTML, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+
+	headings := make([]string, 0, len(matches))
+	for _, match := range matches {
+		// Inner markup (a <code> span inside a heading, say) would otherwise be
+		// indexed as tag names.
+		text := strings.TrimSpace(stripTags(match[1]))
+		if text != "" {
+			headings = append(headings, text)
+		}
+	}
+	return strings.Join(headings, "\n")
+}
+
+// stripTags removes HTML elements, leaving their text content.
+func stripTags(fragment string) string {
+	var out strings.Builder
+	depth := 0
+	for _, r := range fragment {
+		switch {
+		case r == '<':
+			depth++
+		case r == '>' && depth > 0:
+			depth--
+		case depth == 0:
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
+}
+
+// deriveTags builds searchable keywords from the upload's filename and title.
+//
+// A file called "deploy-runbook.md" should be findable by searching "deploy" or
+// "runbook" even when the body never uses those words, which happens often with
+// internal documents that assume their own filename as context.
+func deriveTags(filename, title string) string {
+	seen := map[string]bool{}
+	tags := make([]string, 0, 8)
+
+	add := func(source string) {
+		for _, part := range tagPattern.Split(source, -1) {
+			part = strings.ToLower(strings.TrimSpace(part))
+			// Single characters and common file extensions are noise.
+			if len(part) < 2 || seen[part] {
+				continue
+			}
+			switch part {
+			case "md", "txt", "html", "htm", "markdown":
+				continue
+			}
+			seen[part] = true
+			tags = append(tags, part)
+		}
+	}
+
+	add(filename)
+	add(title)
+
+	return strings.Join(tags, " ")
+}
+
+// Sources reports the user-upload source, and only when at least one document exists.
+// Offering an empty filter option would suggest documents are there when none are.
+func (u *UserStore) Sources(ctx context.Context) ([]SourceSummary, error) {
+	if u == nil || u.db == nil {
+		return nil, errors.New("user store not initialized")
+	}
+
+	var count int
+	if err := u.db.QueryRowContext(ctx, `SELECT count(*) FROM user_documents;`).Scan(&count); err != nil {
+		return nil, fmt.Errorf("could not count user documents")
+	}
+	if count == 0 {
+		return []SourceSummary{}, nil
+	}
+
+	return []SourceSummary{{ID: "user", Title: SourceTitle("user"), Count: count}}, nil
 }

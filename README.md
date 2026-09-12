@@ -6,15 +6,21 @@ type generation, regex inspection, text transforms, API contract testing, diagra
 and interactive learning into a single local-first container.
 
 Everything you paste stays in your browser unless you explicitly send it somewhere.
-The container is **17 MB**, idles at **~2.6 MiB** of RAM, and is ready in **under two
-seconds**.
+The container is **17.6 MB**, idles at **~2.6 MiB** of RAM, and is ready in **under
+two seconds**.
 
 ## Tools
 
 ### Documentation and reference
 
-- **Doc Search** — multi-source search over read-only SQLite FTS5 packs with BM25
-  ranking, highlighted excerpts and deep permalinks.
+- **Doc Search** — offline search over a read-only SQLite FTS5 pack with BM25
+  ranking, highlighted excerpts and deep permalinks. The shipped pack holds **51
+  documents across 10 sources** — HTTP, OpenAPI, JSON Schema, regular expressions,
+  Git, Docker, SQL, TypeScript, ASP.NET Core and Angular — in 296 KB, and measured
+  search p95 is **2.84 ms**. Title, headings, body and tags are indexed as separate
+  weighted columns, so a query naming a section ranks that document first.
+  All pack content is original and MIT-licensed, with each document linking to a
+  canonical upstream reference rather than reproducing it.
 - **User document ingestion** — drag and drop `.md`, `.html` or `.txt` into an
   isolated writable SQLite store (WAL mode, FTS5 triggers) and search it immediately.
 - **Pack builder CLI** — `pnpm pack:build --dir <dir> --name <pack>` compiles a

@@ -202,8 +202,14 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS, opts ...
 		_ = json.NewEncoder(w).Encode(results)
 	})
 
-	// Docs document by ID endpoint
-	mux.HandleFunc("GET /api/docs/{id}", func(w http.ResponseWriter, r *http.Request) {
+	// Docs document by ID endpoint.
+	//
+	// Document ids carry their source as a prefix ("regex/catastrophic-backtracking"),
+	// so the pattern is a multi-segment wildcard. With a single-segment {id} only the
+	// percent-encoded form matched, and the natural unencoded path an external client
+	// would build returned 404. Literal routes such as /api/docs/search and
+	// /api/docs/sources still win over this wildcard by ServeMux precedence.
+	mux.HandleFunc("GET /api/docs/{id...}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if searcher == nil || searcher.Ready() != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -227,6 +233,34 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS, opts ...
 
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(doc)
+	})
+
+	// Available documentation sources, so the UI's source filter is derived from the
+	// index rather than hardcoded. A hardcoded list silently made six of the ten
+	// sources in the core pack unreachable when the pack grew.
+	mux.HandleFunc("GET /api/docs/sources", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		lister, ok := searcher.(docs.SourceLister)
+		if !ok || searcher == nil {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode([]docs.SourceSummary{})
+			return
+		}
+
+		sources, err := lister.Sources(r.Context())
+		if err != nil {
+			slog.Error("failed to list documentation sources", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "could not list sources"})
+			return
+		}
+		if sources == nil {
+			sources = []docs.SourceSummary{}
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(sources)
 	})
 
 	// User docs store accessor

@@ -1,32 +1,71 @@
 {
   "id": "core",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "kind": "content",
+  "title": "Developer Toolbox Core Reference",
+  "description": "Offline reference for HTTP, OpenAPI, JSON Schema, regular expressions, Git, Docker, SQL, TypeScript, ASP.NET Core and Angular.",
   "database": "docs.db",
-  "sha256": "1f4081c7d390df7ac69cc43e26bba7a86a95ccd365d74e1e079e69c844393d58",
+  "sha256": "d08afbd2caed0a06f45a88272d3e6e1d23406a83b931cb38798485647dc83388",
   "sources": [
     {
-      "name": "Microsoft Learn (ASP.NET Core)",
+      "name": "Angular",
+      "url": "https://angular.dev/",
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox. Links point to the Angular documentation; no documentation text is reproduced."
+    },
+    {
+      "name": "ASP.NET Core",
       "url": "https://learn.microsoft.com/aspnet/core/",
-      "license": "CC-BY-4.0",
-      "attribution": "Documentation derived from Microsoft Learn, licensed under CC BY 4.0."
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox. Links point to Microsoft Learn; no documentation text is reproduced."
     },
     {
-      "name": "TypeScript Handbook",
-      "url": "https://www.typescriptlang.org/docs/",
-      "license": "Apache-2.0",
-      "attribution": "Documentation derived from TypeScript Handbook, licensed under Apache-2.0."
-    },
-    {
-      "name": "Git Documentation",
-      "url": "https://git-scm.com/doc",
-      "license": "GPLv2, MIT",
-      "attribution": "Documentation derived from Git Documentation, licensed under GPLv2 and MIT."
-    },
-    {
-      "name": "Docker Documentation",
+      "name": "Docker",
       "url": "https://docs.docker.com/",
-      "license": "Apache-2.0",
-      "attribution": "Documentation derived from Docker Docs, licensed under Apache-2.0."
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox. Links point to the Docker documentation; no documentation text is reproduced."
+    },
+    {
+      "name": "Git",
+      "url": "https://git-scm.com/doc",
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox. Links point to the Git documentation; no manual-page text is reproduced."
+    },
+    {
+      "name": "HTTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox. Links point to RFC 9110 and related specifications; no specification text is reproduced."
+    },
+    {
+      "name": "JSON Schema 2020-12",
+      "url": "https://json-schema.org/specification",
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox. Links point to the JSON Schema specification; no specification text is reproduced."
+    },
+    {
+      "name": "OpenAPI Specification",
+      "url": "https://spec.openapis.org/oas/v3.1.1.html",
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox. Links point to the OpenAPI Specification; no specification text is reproduced."
+    },
+    {
+      "name": "Regular Expressions",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions",
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox."
+    },
+    {
+      "name": "SQL",
+      "url": "https://www.iso.org/standard/76583.html",
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox."
+    },
+    {
+      "name": "TypeScript",
+      "url": "https://www.typescriptlang.org/docs/",
+      "license": "MIT",
+      "attribution": "Original reference content authored for Developer Toolbox. Links point to the TypeScript documentation; no documentation text is reproduced."
     }
   ]
 }

@@ -351,3 +351,131 @@ func TestClientRoutesCoverNavigation(t *testing.T) {
 		}
 	}
 }
+
+// TestDocumentRouteAcceptsMultiSegmentID is the regression test for document ids that
+// contain a slash. With a single-segment {id} pattern only the percent-encoded form
+// matched, so the natural unencoded path an external client builds returned 404.
+func TestDocumentRouteAcceptsMultiSegmentID(t *testing.T) {
+	searcher := &mockSearcher{doc: docs.Document{
+		ID:          "regex/catastrophic-backtracking",
+		Source:      "regex",
+		Title:       "Catastrophic backtracking",
+		BodyHTML:    "<p>body</p>",
+		Attribution: "Fixture.",
+	}}
+	srv := NewServer(config.Config{}, searcher, nil)
+
+	for _, path := range []string{
+		"/api/docs/regex/catastrophic-backtracking",
+		"/api/docs/regex%2Fcatastrophic-backtracking",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: expected 200, got %d", path, rec.Code)
+			continue
+		}
+
+		var doc docs.Document
+		if err := json.NewDecoder(rec.Body).Decode(&doc); err != nil {
+			t.Errorf("%s: decode: %v", path, err)
+			continue
+		}
+		if doc.ID != "regex/catastrophic-backtracking" {
+			t.Errorf("%s: unexpected id %q", path, doc.ID)
+		}
+	}
+}
+
+// TestLiteralDocsRoutesOutrankTheWildcard guards the ServeMux precedence the
+// multi-segment document route depends on: /api/docs/search and /api/docs/sources
+// must not be swallowed by /api/docs/{id...}.
+func TestLiteralDocsRoutesOutrankTheWildcard(t *testing.T) {
+	srv := NewServer(config.Config{}, &mockSearcher{}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/search?q=anything", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("search route: expected 200, got %d", rec.Code)
+	}
+	// A document response would carry a bodyHtml field; a search response is an array.
+	if body := rec.Body.String(); !strings.HasPrefix(strings.TrimSpace(body), "[") {
+		t.Errorf("search route did not return a result array: %s", body)
+	}
+
+	reqSources := httptest.NewRequest(http.MethodGet, "/api/docs/sources", nil)
+	recSources := httptest.NewRecorder()
+	srv.ServeHTTP(recSources, reqSources)
+	if recSources.Code != http.StatusOK {
+		t.Errorf("sources route: expected 200, got %d", recSources.Code)
+	}
+}
+
+// TestSourcesEndpoint covers the derived source list that replaced the UI's
+// hardcoded four-entry filter.
+func TestSourcesEndpoint(t *testing.T) {
+	tempDir := t.TempDir()
+	userStore, err := docs.OpenUserStore(tempDir + "/sources-user.db")
+	if err != nil {
+		t.Fatalf("open user store: %v", err)
+	}
+	defer userStore.Close()
+
+	srv := NewServer(config.Config{}, docs.NewMultiSearcher(nil, userStore), nil)
+
+	// With no uploads, the user source is not offered at all.
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/sources", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var sources []docs.SourceSummary
+	if err := json.NewDecoder(rec.Body).Decode(&sources); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	for _, s := range sources {
+		if s.ID == "user" {
+			t.Error("the user source must not be listed while no uploads exist")
+		}
+	}
+
+	// After an upload it appears, with a count.
+	if _, err := userStore.InsertDocument(context.Background(), docs.UserDocumentInput{
+		Title:    "Runbook",
+		Filename: "runbook.md",
+		Content:  "# Deploy\nStep one.",
+	}); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	req2 := httptest.NewRequest(http.MethodGet, "/api/docs/sources", nil)
+	rec2 := httptest.NewRecorder()
+	srv.ServeHTTP(rec2, req2)
+
+	var after []docs.SourceSummary
+	if err := json.NewDecoder(rec2.Body).Decode(&after); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	found := false
+	for _, s := range after {
+		if s.ID == "user" {
+			found = true
+			if s.Count != 1 {
+				t.Errorf("expected a count of 1, got %d", s.Count)
+			}
+			if s.Title == "" {
+				t.Error("a source must carry a display title")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected the user source to be listed after an upload")
+	}
+}

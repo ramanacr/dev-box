@@ -14,8 +14,26 @@ func TestValidatePack_ValidPack(t *testing.T) {
 	if manifest.ID != "core" {
 		t.Errorf("expected id 'core', got %q", manifest.ID)
 	}
-	if len(manifest.Sources) != 4 {
-		t.Errorf("expected 4 sources, got %d", len(manifest.Sources))
+
+	// Pinning an exact source count made this fail whenever content was added, which
+	// tested the pack's contents rather than the validator. What matters is that
+	// every declared source carries the provenance a reviewer needs.
+	if len(manifest.Sources) == 0 {
+		t.Fatal("expected at least one declared source")
+	}
+	for i, src := range manifest.Sources {
+		if src.Name == "" {
+			t.Errorf("source [%d] has no name", i)
+		}
+		if src.License == "" {
+			t.Errorf("source %q declares no licence", src.Name)
+		}
+		if src.Attribution == "" {
+			t.Errorf("source %q declares no attribution", src.Name)
+		}
+		if src.URL == "" {
+			t.Errorf("source %q declares no url", src.Name)
+		}
 	}
 }
 

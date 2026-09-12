@@ -79,3 +79,19 @@ type Pack struct {
 	// Each invokes fn once per document, stopping early if fn returns an error.
 	Each func(ctx context.Context, fn func(Document) error) error
 }
+
+// SourceSummary describes one documentation source available in the index.
+type SourceSummary struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Count int    `json:"count"`
+}
+
+// SourceLister is implemented by searchers that can enumerate their sources.
+//
+// The UI's source filter used to be a hardcoded list of four names. Adding sources to
+// the pack silently made them unreachable through the filter, which is exactly the
+// kind of drift a derived list cannot have.
+type SourceLister interface {
+	Sources(ctx context.Context) ([]SourceSummary, error)
+}

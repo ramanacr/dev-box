@@ -13,21 +13,22 @@ modules that no phase plan had scheduled.
 | --- | --- | --- |
 | Go formatting | `gofmt -l cmd internal` | Clean (was 19 unformatted files) |
 | Go vet | `go vet ./...` | Clean |
-| Go tests | `go test -count=1 ./...` | **10/10 packages ok, 101 test functions** (was 30) |
+| Go tests | `go test -count=1 ./...` | **10/10 packages ok, 114 test functions** (was 30) |
 | TypeScript | `tsc --noEmit` | 0 errors |
-| Web unit tests | `vitest run` | **35 files, 510 tests passed** (was 24 / 104) |
+| Web unit tests | `vitest run` | **35 files, 517 tests passed** (was 24 / 104) |
 | MCP server tests | `pnpm --filter @toolbox/mcp-server test` | **24 passed** (was 3) |
 | VS Code tests | `pnpm --filter @toolbox/vscode test` | **16 passed** (was 0 — no test file existed) |
-| End-to-end | `playwright test` | **69 passed** (was 10) |
+| End-to-end | `playwright test` | **80 passed** (was 10) |
 | Bundle budgets | `node scripts/check-budgets.mjs` | Initial JS **12.95 KB** / 250 KB; CSS **3.19 KB** / 50 KB |
 | Docker build | `docker build -t developer-toolbox:complete .` | Success |
-| Image size | `docker images` | **17.3 MB** / 150 MB budget (was 30.4 MB) |
+| Image size | `docker images` | **17.6 MB** / 150 MB budget (was 30.4 MB) |
 | Plain `docker run -p` | `docker run -d -p 127.0.0.1:18090:8080 …` | Reachable; `/healthz` → `{"status":"ok"}` (previously unreachable) |
 | Application readiness | `./scripts/measure-runtime.sh` | **0.90–1.61 s** across four runs, against a 2.0 s budget |
 | Idle container RSS | same | **2.53–2.65 MiB** against a 60 MB budget |
+| Documentation search p95 | 210 requests over 15 queries against the shipped pack | **2.84 ms** against a 100 ms budget (median 1.87 ms, p99 4.68 ms) |
 | MCP handshake | stdio `initialize` + `tools/list` + `tools/call` | Both tools listed and callable against the live container |
 
-**Total test count: 720**, from a baseline of 144.
+**Total test count: 751**, from a baseline of 144.
 
 ### A note on the startup measurement
 
@@ -361,30 +362,93 @@ to the implemented `TOOLBOX_FEATURE_COLLABORATION`.
 7. **The `/api` → `/api-workbench` route rename** changes a user-visible URL. Any
    bookmark to `/api` will now 404 rather than silently loading the workbench.
 
+## The first documentation pack
+
+The Product Owner approved the white paper's recommended pack. It is built.
+
+`packs/core` now holds **51 documents across 10 sources** — HTTP, OpenAPI, JSON
+Schema, regular expressions, Git, Docker, SQL, TypeScript, ASP.NET Core and Angular —
+in a 296 KB read-only FTS5 database. Measured search p95 is 2.84 ms, the first time
+that target has actually been measured rather than stated.
+
+### Content is original, and that is the licensing decision
+
+Every document is authored for this product and licensed MIT. Nothing is scraped or
+closely paraphrased; each links to a canonical upstream reference instead.
+
+This is what made the pack shippable without a per-source legal review. The white
+paper is explicit that a permissive application licence grants no right to
+redistribute documentation, and names the hazards by name — ExplainShell's
+manpage-derived database carries individually licensed upstream manual pages, DevDocs
+is MPL-2.0 with an attribution request, RegExr is GPLv3. Original content sidesteps
+all of it. A team that has cleared an upstream source can still add it through the
+pack builder, with the assessment recorded in the manifest; the point is that the
+first release does not depend on that clearance.
+
+This also closes the Standards Shelf (A-3) item from limitation 4: a curated offline
+reference for HTTP, OpenAPI, JSON Schema, regex, Git, Docker and SQL is precisely
+what the pack now contains.
+
+### The index design the white paper asked for
+
+Building a real corpus was the right moment to implement the weighted index, because
+doing it later would mean migrating a shipped pack. The FTS table now indexes
+`title, headings, body_html, tags, source` as five columns with `bm25()` weights
+`8.0, 4.0, 1.0, 2.0, 0.5` — headings above prose, as the white paper's index design
+requires, and source *below* prose since the filter is the proper way to narrow by
+source. The user-upload store mirrors the schema and derives headings from the
+converted HTML and tags from the filename, so an uploaded document ranks by the same
+rules.
+
+### Defects found while building it
+
+- **The source filter was a hardcoded list of four names.** Growing the pack to ten
+  sources silently made six of them unreachable through the filter. It is now derived
+  from a new `GET /api/docs/sources` endpoint, which also reports per-source counts
+  and omits the user source until an upload exists.
+- **Document permalinks were not retrievable by their natural path.** Ids carry
+  their source as a prefix (`regex/catastrophic-backtracking`), and the route was
+  `GET /api/docs/{id}` — a single segment. Only the percent-encoded form matched, so
+  the unencoded path any external client would build returned 404. The route now
+  accepts a multi-segment id, with a test asserting the literal `/search` and
+  `/sources` routes still win by ServeMux precedence.
+- **Search snippets displayed raw HTML.** A snippet is an excerpt of the document
+  body, so it contains structural tags cut at arbitrary offsets. The sanitizer escaped
+  them — safe, but it rendered `<h2>The shape of the problem</h2>` as literal text in
+  every result. It now strips all markup and reintroduces only `<mark>`, from
+  placeholders that cannot occur in the input. The security property is unchanged and
+  the tests now include double-encoding and mark-lookalike attempts.
+- **Two tests asserted pack contents rather than searcher behaviour.** They pinned
+  exact document ids and a source count, so they broke the moment content was added.
+  Ranking, filtering, snippet and Unicode behaviour is now tested against a
+  purpose-built fixture corpus; separate tests assert properties of the shipped pack
+  without pinning its content.
+
+### Known limitation
+
+The pack is a **reference shelf, not a documentation mirror**. 296 KB against the
+white paper's 50–150 MB base-pack figure reflects that honestly: it answers the
+high-frequency questions the product thesis describes, and it is not a replacement
+for reading a specification. Mirroring a full upstream documentation set remains the
+pack-builder path, gated on the licence assessment for each source.
+
 ## Recommended next decision
 
-**Select and approve the first real documentation pack.** This is now the only thing
-standing between the product and the outcome the white paper actually describes.
+**Whether to clear any upstream documentation source for redistribution.**
 
-Every other part of documentation search is finished and measured: the FTS5 index,
-BM25 ranking with column weighting, snippet highlighting, source filtering, the
-signed-manifest pack format with checksum and per-source licence provenance, the
-pack-builder CLI, the admin activation flow with its confirmation step, and the
-writable store for a team's own uploads. What ships today is a seed corpus of a
-handful of documents, because content redistribution is the one decision the AI
-cannot make for the Product Owner.
+The core pack ships original content specifically so the first release did not need
+that clearance. Everything around it is finished and measured: the FTS5 index with
+weighted columns, the signed-manifest pack format, the builder with its validation,
+the admin activation flow with its provenance confirmation, and the writable store
+for a team's own uploads.
 
-The white paper's own recommendation is **.NET / C# / ASP.NET Core + Angular +
-TypeScript + Git + Docker + OpenAPI + SQL**. Each source needs its redistribution
-terms assessed and recorded in the pack manifest before distribution — the white
-paper is explicit that a permissive application licence grants no right to
-redistribute documentation. That assessment is a Product Owner call, and it also
-settles limitation 4's Standards Shelf, which is the same task.
+So the remaining question is a legal one rather than an engineering one: if the
+organisation wants the full Microsoft Learn, Angular or TypeScript documentation
+mirrored into a pack, someone has to assess each source's redistribution terms and
+record that assessment. The white paper recommends
+**.NET / C# / ASP.NET Core + Angular + TypeScript + Git + Docker + OpenAPI + SQL**
+for this. Until then the reference shelf stands on its own.
 
-Two smaller decisions follow from it:
-
-1. **The three gated extensions** (Typesense, collaboration, AI) are implemented and
-   disabled, with honest NOT-MET gate tables in their ADRs. They stay off until
-   real measurements or real demand exist. No action needed unless that changes.
-2. **The `/api` → `/api-workbench` route rename** is user-visible. If anyone has
-   bookmarked `/api`, decide whether to add a redirect.
+The three gated extensions (Typesense, collaboration, AI) remain implemented and
+disabled, with honest NOT-MET gate tables in ADRs 0003–0005. No action is needed on
+them unless real measurements or real demand appear.

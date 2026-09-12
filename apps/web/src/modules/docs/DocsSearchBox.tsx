@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { ToolboxClient, type DocsSource } from '@/platform/http/toolboxClient';
 
 interface DocsSearchBoxProps {
   value: string;
@@ -22,11 +23,31 @@ export function DocsSearchBox({
   isLoading,
 }: DocsSearchBoxProps) {
   const [localVal, setLocalVal] = useState(value);
+  const [sources, setSources] = useState<DocsSource[]>([]);
   const debounceTimer = useRef<number | null>(null);
 
   useEffect(() => {
     setLocalVal(value);
   }, [value]);
+
+  // The filter is derived from the index rather than hardcoded. The previous literal
+  // list named four sources, so adding sources to the pack silently made them
+  // unreachable through the filter.
+  useEffect(() => {
+    let cancelled = false;
+
+    ToolboxClient.listSources()
+      .then((list) => {
+        if (!cancelled) setSources(list);
+      })
+      .catch(() => {
+        // An unreachable endpoint leaves only "All sources", which still works.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleInput = (newVal: string) => {
     setLocalVal(newVal);
@@ -77,12 +98,12 @@ export function DocsSearchBox({
         onChange={(e) => onSourceChange((e.target as HTMLSelectElement).value)}
         aria-label="Filter documentation source"
       >
-        <option value="">All Sources</option>
-        <option value="aspnetcore">ASP.NET Core</option>
-        <option value="typescript">TypeScript</option>
-        <option value="git">Git</option>
-        <option value="docker">Docker</option>
-        <option value="user">User Uploads</option>
+        <option value="">All sources</option>
+        {sources.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.title} ({s.count})
+          </option>
+        ))}
       </select>
 
       {localVal && (

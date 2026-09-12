@@ -15,6 +15,10 @@ const CommandPage = lazy(() => import('@/modules/command/CommandPage').then((m) 
 const JwtPage = lazy(() => import('@/modules/jwt/JwtPage').then((m) => ({ default: m.JwtPage })));
 const QueryPage = lazy(() => import('@/modules/query/QueryPage').then((m) => ({ default: m.QueryPage })));
 const TypesPage = lazy(() => import('@/modules/types/TypesPage').then((m) => ({ default: m.TypesPage })));
+const CronPage = lazy(() => import('@/modules/cron/CronPage').then((m) => ({ default: m.CronPage })));
+const DiffPage = lazy(() => import('@/modules/diff/DiffPage').then((m) => ({ default: m.DiffPage })));
+const SqlPage = lazy(() => import('@/modules/sql/SqlPage').then((m) => ({ default: m.SqlPage })));
+const EncodePage = lazy(() => import('@/modules/text/EncodePage').then((m) => ({ default: m.EncodePage })));
 const WorkspacePage = lazy(() => import('@/modules/team/WorkspacePage').then((m) => ({ default: m.WorkspacePage })));
 const AdminPage = lazy(() => import('@/modules/team/AdminPage').then((m) => ({ default: m.AdminPage })));
 
@@ -66,6 +70,18 @@ export function RouterView({ currentPath, onNavigate }: RouterViewProps) {
     }
     if (currentPath.startsWith('/types')) {
       return <TypesPage />;
+    }
+    if (currentPath.startsWith('/cron')) {
+      return <CronPage />;
+    }
+    if (currentPath.startsWith('/diff')) {
+      return <DiffPage />;
+    }
+    if (currentPath.startsWith('/sql')) {
+      return <SqlPage />;
+    }
+    if (currentPath.startsWith('/encode')) {
+      return <EncodePage />;
     }
     if (currentPath.startsWith('/team')) {
       return <WorkspacePage />;

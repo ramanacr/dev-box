@@ -42,6 +42,14 @@ seconds**.
   signed token's payload is base64url-encoded, not encrypted, and this tool makes no
   claim about authenticity. Timing claims are checked because they can be, without a
   key.
+- **SQL Assistant** — format a statement without changing a single token, and review
+  it for unbounded writes, `= NULL`, comma joins, string concatenation and
+  per-dialect portability across ANSI, PostgreSQL, MySQL, SQL Server and SQLite. No
+  driver and no connection code: nothing here can execute a query. Shows the
+  parameterised form for your dialect, because that is the actual remedy.
+- **Text Diff** — Myers minimal edit script, so a small change in a large file reads
+  as a small change. Word-level highlighting inside similar lines, configurable
+  context, and unified-patch export.
 
 ### API and diagrams
 
@@ -63,6 +71,13 @@ seconds**.
 - **Text and hashes** — URL and Base64 encode/decode, HTML entity escaping, line
   sort and deduplicate, case conversion, Web Crypto SHA-256/SHA-512, UUID v4, Unix
   timestamp conversion.
+- **Encoding and Time** — gzip compress/decompress via the browser's own
+  CompressionStream (and it tells you honestly when compression made the data
+  larger), HMAC with a key you supply, and one instant rendered across many IANA
+  timezones with daylight saving applied per date.
+- **Cron Visualizer** — explains each field, projects the next runs, and warns about
+  the traps: day-of-month and day-of-week are OR-ed rather than AND-ed, and day 31
+  simply never fires in a short month.
 - **Secret redaction** — every download is scanned for tokens, passwords, API keys
   and connection strings, with a confirmation preview before the file is written.
 - **Code Image Exporter** — syntax-highlighted code cards with window chrome and
@@ -70,8 +85,11 @@ seconds**.
 - **Git Learning Sandbox** — a pure in-browser Git DAG simulation covering commit,
   branch, switch, merge, rebase, reset, revert and cherry-pick, with progressive
   lessons. It never touches the filesystem or runs `git`.
-- **Algorithm Visualizer** — step through Bubble Sort, Merge Sort, BFS and Dijkstra
-  with an accessible state table alongside the visualisation.
+- **Algorithm Visualizer** — eleven visualizers with an accessible state table
+  alongside each: bubble and merge sort; BFS, DFS and Dijkstra; heap build and
+  extract drawn as the tree the array represents; BST insert, in-order walk and
+  search; and hash tables under separate chaining, linear probing and quadratic
+  probing. Every step is an immutable snapshot, so you can step backwards freely.
 - **Theme switcher** — light, dark and system.
 
 ## Quick start

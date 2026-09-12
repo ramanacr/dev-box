@@ -15,19 +15,19 @@ modules that no phase plan had scheduled.
 | Go vet | `go vet ./...` | Clean |
 | Go tests | `go test -count=1 ./...` | **10/10 packages ok, 101 test functions** (was 30) |
 | TypeScript | `tsc --noEmit` | 0 errors |
-| Web unit tests | `vitest run` | **30 files, 265 tests passed** (was 24 / 104) |
+| Web unit tests | `vitest run` | **35 files, 510 tests passed** (was 24 / 104) |
 | MCP server tests | `pnpm --filter @toolbox/mcp-server test` | **24 passed** (was 3) |
 | VS Code tests | `pnpm --filter @toolbox/vscode test` | **16 passed** (was 0 — no test file existed) |
-| End-to-end | `playwright test` | **40 passed** (was 10) |
-| Bundle budgets | `node scripts/check-budgets.mjs` | Initial JS **12.48 KB** / 250 KB; CSS **2.47 KB** / 50 KB |
+| End-to-end | `playwright test` | **69 passed** (was 10) |
+| Bundle budgets | `node scripts/check-budgets.mjs` | Initial JS **12.95 KB** / 250 KB; CSS **3.19 KB** / 50 KB |
 | Docker build | `docker build -t developer-toolbox:complete .` | Success |
-| Image size | `docker images` | **17.2 MB** / 150 MB budget (was 30.4 MB) |
+| Image size | `docker images` | **17.3 MB** / 150 MB budget (was 30.4 MB) |
 | Plain `docker run -p` | `docker run -d -p 127.0.0.1:18090:8080 …` | Reachable; `/healthz` → `{"status":"ok"}` (previously unreachable) |
-| Application readiness | `./scripts/measure-runtime.sh` ×3 | **0.90 s / 1.28 s / 1.61 s** against a 2.0 s budget |
+| Application readiness | `./scripts/measure-runtime.sh` | **0.90–1.61 s** across four runs, against a 2.0 s budget |
 | Idle container RSS | same | **2.53–2.65 MiB** against a 60 MB budget |
 | MCP handshake | stdio `initialize` + `tools/list` + `tools/call` | Both tools listed and callable against the live container |
 
-**Total test count: 446**, from a baseline of 144.
+**Total test count: 720**, from a baseline of 144.
 
 ### A note on the startup measurement
 
@@ -233,9 +233,16 @@ central lesson was that unreachable code is not delivered work.
 | Module | Status | Tests |
 | --- | --- | --- |
 | **A-2 Command Reference** | Delivered. Shell tokenizer with POSIX quoting, option clusters, fused and separate option values, subcommand-scoped option tables, redirections, assignments, pipelines, and safe-command warnings | 52 |
-| **B-5 JSON Query (JSONPath)** | Delivered. Child, index, negative index, union, slice with step, wildcard, recursive descent, and comparison/presence filters. Filter bodies are parsed into a typed form — never evaluated as code | 40 |
 | **B-4 Type generation** | Delivered for all seven listed languages: TypeScript, C#, Java, Kotlin, Go, Python, Rust. Optional and nullable fields are inferred by merging observed shapes | 31 |
+| **B-5 JSON Query (JSONPath)** | Delivered. Child, index, negative index, union, slice with step, wildcard, recursive descent, and comparison/presence filters. Filter bodies are parsed into a typed form — never evaluated as code | 40 |
 | **B-6 JWT decoder** | Delivered, decode-only. Reports what the token *says* plus timing facts checkable without a key, and states plainly that the signature was not verified. There is deliberately no boolean named `valid` anywhere in the result | 21 |
+| **D-2 gzip encode/decode** | Delivered on the browser's own CompressionStream. Reports the ratio honestly when compression makes the data larger, and identifies non-gzip base64 by its missing magic number rather than surfacing a stream error | 42 (with HMAC and timezones) |
+| **D-3 HMAC** | Delivered on Web Crypto, RS/ES families plus SHA-1 with a deprecation note. An empty key is refused rather than defaulted, because an HMAC without a secret authenticates nothing. Verified against the RFC 4231 reference vectors | — |
+| **D-3 Timezone converter** | Delivered. Renders one instant across many IANA zones, and converts a wall-clock reading in one zone into an instant — the direction that is actually hard. Offsets are computed per date, so daylight saving is applied correctly | — |
+| **D-3 Cron visualizer** | Delivered. Parses the five- and six-field forms plus the @-shorthands, explains each field, projects the next occurrences, and warns about the day-of-month/day-of-week OR trap and days that do not occur in every month | 50 |
+| **D-4 Text diff** | Delivered. Myers minimal edit script with common prefix/suffix stripping, word-level highlighting inside similar lines, hunks with configurable context, and unified-patch export | 38 |
+| **D-5 SQL assistant** | Delivered. Token-preserving formatter plus a linter covering unbounded writes, `= NULL`, `SELECT *`, comma joins, ORDER BY without a limit, string concatenation, and per-dialect portability across five dialects. Includes the parameterised form for each dialect. No driver and no connection code | 57 |
+| **E-4 Heap, BST, hash-table, DFS** | Delivered. Heap build and extract shown as the tree the array represents; BST insert, in-order walk and search; hash tables with separate chaining, linear probing and quadratic probing; and DFS alongside BFS so the stack/queue contrast is visible | 58 |
 
 ### Deliberate technology choices
 
@@ -323,17 +330,25 @@ to the implemented `TOOLBOX_FEATURE_COLLABORATION`.
    Linux, and the collaboration hub's concurrency fixes are covered by a
    concurrent broadcast/leave test that will exercise them there.
 
-4. **White-paper modules still not built.** These remain genuinely absent and are the
-   honest remaining gap against the white paper's first-release scope:
-   - A-3 Standards Shelf (curated offline reference shelf)
-   - D-2 gzip encode/decode
-   - D-3 HMAC, cron visualizer, timezone converter
-   - D-4 Minifier and text diff (sort/deduplicate are present)
-   - D-5 SQL assistant (formatter, dialect-aware linting, explain-plan viewer)
-   - E-4 Algorithm visualizer: heap, binary search tree, hash-table collision
-     strategies, and DFS (bubble sort, merge sort, BFS and Dijkstra are present)
-   - B-5 `jq` and JMESPath panes (JSONPath is delivered; the other two dialects are
-     not, and the UI does not claim them)
+4. **White-paper items still not built.** These remain the honest remaining gap
+   against the white paper's first-release scope:
+   - **A-3 Standards Shelf** — a curated offline reference shelf for HTTP, OpenAPI,
+     JSON Schema, regex, Git, Docker and SQL. This is primarily a content-governance
+     task rather than a code one: each source's redistribution terms have to be
+     assessed and recorded in a pack manifest before it can ship, and the pack
+     pipeline to do that already exists.
+   - **B-5 `jq` and JMESPath panes** — JSONPath is delivered and the UI states
+     exactly which syntax it supports. The other two are separate query languages
+     with their own grammars; implementing them natively is a comparable amount of
+     work again, and the UI does not claim them.
+   - **D-4 Minifier** — text sort, deduplicate, case conversion and diff are all
+     delivered. A language-aware minifier is a different kind of tool: doing it
+     correctly means a parser per language, which is the sort of dependency weight
+     the design rule argues against for a marginal utility.
+   - **D-5 Explain-plan viewer** — the SQL formatter, dialect-aware linter and
+     parameterised examples are delivered. Parsing pasted `EXPLAIN` output is
+     per-engine work (PostgreSQL, MySQL and SQL Server emit unrelated formats) and
+     was left out rather than half-supported.
 
 5. **Collaboration snapshots are last-write-wins.** Two editors saving concurrently
    means one snapshot survives. This is recorded in ADR 0004 as a gate row that must
@@ -348,8 +363,28 @@ to the implemented `TOOLBOX_FEATURE_COLLABORATION`.
 
 ## Recommended next decision
 
-Whether the remaining white-paper modules in limitation 4 are still in scope. They
-were committed to in the white paper but dropped by every phase plan without a
-recorded reduction — so the plans and the white paper currently disagree about what
-the first release contains. That is a Product Owner call: either schedule them, or
-amend the white paper to match the delivered scope.
+**Select and approve the first real documentation pack.** This is now the only thing
+standing between the product and the outcome the white paper actually describes.
+
+Every other part of documentation search is finished and measured: the FTS5 index,
+BM25 ranking with column weighting, snippet highlighting, source filtering, the
+signed-manifest pack format with checksum and per-source licence provenance, the
+pack-builder CLI, the admin activation flow with its confirmation step, and the
+writable store for a team's own uploads. What ships today is a seed corpus of a
+handful of documents, because content redistribution is the one decision the AI
+cannot make for the Product Owner.
+
+The white paper's own recommendation is **.NET / C# / ASP.NET Core + Angular +
+TypeScript + Git + Docker + OpenAPI + SQL**. Each source needs its redistribution
+terms assessed and recorded in the pack manifest before distribution — the white
+paper is explicit that a permissive application licence grants no right to
+redistribute documentation. That assessment is a Product Owner call, and it also
+settles limitation 4's Standards Shelf, which is the same task.
+
+Two smaller decisions follow from it:
+
+1. **The three gated extensions** (Typesense, collaboration, AI) are implemented and
+   disabled, with honest NOT-MET gate tables in their ADRs. They stay off until
+   real measurements or real demand exist. No action needed unless that changes.
+2. **The `/api` → `/api-workbench` route rename** is user-visible. If anyone has
+   bookmarked `/api`, decide whether to add a redirect.

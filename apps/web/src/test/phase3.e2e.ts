@@ -53,6 +53,13 @@ test.describe('Phase 3 Features - E2E Suite', () => {
 
     await stepBtn.click();
     await expect(page.getByText('Step 2 of')).toBeVisible();
-    await expect(page.getByText('Step Explanation:')).toBeVisible();
+    await expect(page.locator('.step-explanation')).toBeVisible();
+
+    // The visualizer now covers heaps, trees and hash tables as well, so confirm a
+    // non-sorting selection still drives the player.
+    await page.getByLabel('Algorithm').selectOption('bfs');
+    await expect(page.getByText('Step 1 of')).toBeVisible();
+    await stepBtn.click();
+    await expect(page.getByText('Step 2 of')).toBeVisible();
   });
 });

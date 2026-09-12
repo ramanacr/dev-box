@@ -53,6 +53,30 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       badge: 'Web Crypto',
     },
     {
+      title: 'Text Diff',
+      path: '/diff',
+      description: 'Compare two documents with a Myers minimal edit script, word-level highlighting inside changed lines, and unified-patch export.',
+      badge: 'Myers diff',
+    },
+    {
+      title: 'SQL Assistant',
+      path: '/sql',
+      description: 'Format a statement and review it for portability and safety across five dialects. No database connection — nothing can be executed.',
+      badge: '5 dialects',
+    },
+    {
+      title: 'Cron Visualizer',
+      path: '/cron',
+      description: 'Explain a cron expression field by field and project when it will actually fire, including the day-of-month/day-of-week OR trap.',
+      badge: 'Schedule',
+    },
+    {
+      title: 'Encoding & Time',
+      path: '/encode',
+      description: 'gzip compress and decompress, compute keyed HMACs with your own secret, and read one instant across many timezones.',
+      badge: 'Built-ins',
+    },
+    {
       title: 'Code Image Exporter',
       path: '/code-image',
       description: 'Render beautiful, configurable code cards with syntax highlighting and window chrome. Export safely to SVG and PNG.',

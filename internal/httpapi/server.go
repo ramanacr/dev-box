@@ -71,6 +71,7 @@ var ClientRoutes = []string{
 	"/sql",
 	"/cron",
 	"/diff",
+	"/encode",
 	"/team",
 	"/admin",
 }

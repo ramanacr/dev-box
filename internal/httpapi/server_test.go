@@ -335,8 +335,11 @@ func TestSPAFallbackOnlyForClientRoutes(t *testing.T) {
 // TestClientRoutesCoverNavigation guards the routing contract between this list and
 // the browser application.
 func TestClientRoutesCoverNavigation(t *testing.T) {
-	required := []string{"/", "/docs", "/data", "/regex", "/text", "/code-image",
-		"/api-workbench", "/diagrams", "/git", "/algorithms"}
+	required := []string{
+		"/", "/docs", "/data", "/regex", "/text", "/code-image",
+		"/api-workbench", "/diagrams", "/git", "/algorithms",
+		"/command", "/query", "/types", "/jwt", "/diff", "/sql", "/cron", "/encode",
+	}
 
 	present := map[string]bool{}
 	for _, r := range ClientRoutes {

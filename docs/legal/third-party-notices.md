@@ -13,6 +13,8 @@ The Developer Toolbox incorporates the following open-source dependencies and do
 | yaml | ISC | Safe YAML parser |
 | papaparse | MIT | In-browser CSV parser |
 | idb | ISC | IndexedDB Promise wrapper |
+| ajv | MIT | JSON Schema Draft 2020-12 contract validation |
+| mermaid | MIT | Offline diagram rendering |
 
 ## Documentation Content Sources
 

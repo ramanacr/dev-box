@@ -148,3 +148,80 @@ export function* dijkstraSteps(
     highlighted: [],
   };
 }
+
+/**
+ * Depth-first traversal.
+ *
+ * The white paper lists "BFS/DFS" together; only BFS was implemented. Written with
+ * an explicit stack rather than recursion so the frontier is a visible part of the
+ * state — which is the whole point of contrasting it with BFS's queue.
+ */
+export function* dfsSteps(
+  initialGraph: GraphState,
+  startNode: string
+): Generator<Step<GraphState>> {
+  const visited = new Set<string>();
+  const stack: string[] = [startNode];
+
+  yield {
+    state: { ...initialGraph, visitedNodes: [] },
+    explanation: `Starting DFS from node "${startNode}". Pushed onto the stack.`,
+    highlighted: [startNode],
+  };
+
+  while (stack.length > 0) {
+    const curr = stack.pop()!;
+
+    if (visited.has(curr)) {
+      yield {
+        state: { ...initialGraph, visitedNodes: Array.from(visited) },
+        explanation: `Popped "${curr}", but it has already been visited — skip it. A node can be pushed more than once before it is first visited.`,
+        highlighted: [curr],
+      };
+      continue;
+    }
+
+    visited.add(curr);
+
+    yield {
+      state: { ...initialGraph, visitedNodes: Array.from(visited) },
+      explanation: `Popped and visiting "${curr}". Depth-first follows the most recently discovered node, not the nearest.`,
+      highlighted: [curr],
+    };
+
+    // Neighbours are pushed in reverse so the first one listed is explored first,
+    // which matches how a recursive implementation would behave.
+    const neighbours = initialGraph.edges
+      .filter((e) => e.from === curr)
+      .map((e) => e.to)
+      .filter((id) => !visited.has(id));
+
+    for (let i = neighbours.length - 1; i >= 0; i--) {
+      stack.push(neighbours[i]!);
+    }
+
+    if (neighbours.length > 0) {
+      yield {
+        state: {
+          ...initialGraph,
+          visitedNodes: Array.from(visited),
+          currentEdge: [curr, neighbours[0]!],
+        },
+        explanation: `Pushed unvisited neighbours of "${curr}": ${neighbours.join(', ')}. "${neighbours[0]}" will be explored next.`,
+        highlighted: neighbours,
+      };
+    } else {
+      yield {
+        state: { ...initialGraph, visitedNodes: Array.from(visited) },
+        explanation: `"${curr}" has no unvisited neighbours, so the traversal backtracks.`,
+        highlighted: [curr],
+      };
+    }
+  }
+
+  yield {
+    state: { ...initialGraph, visitedNodes: Array.from(visited) },
+    explanation: `DFS complete. Visited ${visited.size} node(s) in order: ${Array.from(visited).join(' → ')}.`,
+    highlighted: [],
+  };
+}

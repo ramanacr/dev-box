@@ -12,9 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12
+      # pnpm comes from corepack, reading the version from package.json's
+      # packageManager field - the same mechanism the Dockerfile uses, so the
+      # image and CI cannot drift. pnpm/action-setup was doing this job until
+      # its self-installer started failing on the Node 24 runner
+      # ("self-installer exits with code 1"); corepack ships with Node and
+      # needs no third-party action. This runs before setup-node because the
+      # 'pnpm' cache key resolves the store directory by invoking pnpm.
+      - run: corepack enable && corepack install
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -22,21 +27,126 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @toolbox/web lint
       - run: pnpm --filter @toolbox/web test
+      - name: Test workspace packages
+        run: pnpm --filter @toolbox/mcp-server test && pnpm --filter @toolbox/vscode test
       - run: pnpm --filter @toolbox/web build
       - name: Verify Bundle Budgets
         run: node scripts/check-budgets.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bundle-budget
+          path: artifacts/bundle-budget.json
+          if-no-files-found: ignore
 
   server-quality:
-    name: Server Test & Build
+    name: Server Format, Test & Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+      # internal/docs validates and searches the shipped content pack, which is a
+      # build product. Without it those tests skip; CI is where they must run.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/build-core-pack.mjs
+      # gofmt is a gate, not a suggestion: an unformatted tree hides real diffs in
+      # review. `gofmt -l` prints offending files and the check fails if any are named.
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l cmd internal)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
       - run: go vet ./...
       - run: go test -v -race ./...
       - run: go build -v ./cmd/toolbox-server
+
+  e2e:
+    name: End-to-End (Playwright)
+    runs-on: ubuntu-latest
+    needs: [web-quality, server-quality]
+    steps:
+      - uses: actions/checkout@v4
+      # pnpm comes from corepack, reading the version from package.json's
+      # packageManager field - the same mechanism the Dockerfile uses, so the
+      # image and CI cannot drift. pnpm/action-setup was doing this job until
+      # its self-installer started failing on the Node 24 runner
+      # ("self-installer exits with code 1"); corepack ships with Node and
+      # needs no third-party action. This runs before setup-node because the
+      # 'pnpm' cache key resolves the store directory by invoking pnpm.
+      - run: corepack enable && corepack install
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - run: pnpm install --frozen-lockfile
+      # The content pack is a build product, not a tracked file, so it has to be
+      # built before anything that reads it. The e2e suite searches it.
+      - run: pnpm pack:build:core
+      - run: pnpm --filter @toolbox/web build
+      - name: Install Playwright browsers
+        run: pnpm --filter @toolbox/web exec playwright install --with-deps chromium
+      # The suite starts the Go server itself (see playwright.config.ts webServer), so
+      # this exercises the real response headers, CSP, SPA fallback and FTS5 search.
+      - name: Run end-to-end suite
+        run: pnpm --filter @toolbox/web e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          if-no-files-found: ignore
+
+  core-profile:
+    name: Core Profile (all extensions disabled)
+    runs-on: ubuntu-latest
+    needs: [server-quality]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      # internal/docs validates and searches the shipped content pack, which is a
+      # build product. Without it those tests skip; CI is where they must run.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/build-core-pack.mjs
+      # Phase 4 requires the core image to keep working with every extension flag
+      # false. Run the suite with the flags explicitly unset to prove it.
+      - name: Test core profile
+        env:
+          TOOLBOX_TEAM_MODE: ''
+          TOOLBOX_FEATURE_TYPESENSE: ''
+          TOOLBOX_FEATURE_COLLABORATION: ''
+          TOOLBOX_FEATURE_AI: ''
+        run: go test ./... -run '.*'
+
+  extension-profiles:
+    name: Extension Profile (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    needs: [server-quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [typesense, collaboration, ai]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      # Each extension is exercised in isolation, as the Phase 4 plan requires.
+      - name: Test ${{ matrix.profile }} in isolation
+        run: go test ./internal/features ./internal/config -v
 
   docker-build-and-scan:
     name: Docker Build & Security Scans
@@ -44,6 +154,12 @@ jobs:
     needs: [web-quality, server-quality]
     steps:
       - uses: actions/checkout@v4
+      # The Dockerfile copies packs/core/docs.db from the build context, and the
+      # pack is generated rather than tracked. node:sqlite needs Node 22.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/build-core-pack.mjs
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build image
@@ -52,12 +168,40 @@ jobs:
           context: .
           load: true
           tags: developer-toolbox:ci
+      - name: Verify the published port is reachable
+        # Regression guard: the image used to bind the container's own loopback, so a
+        # published port connected to nothing.
+        run: |
+          docker run -d --name toolbox-ci -p 127.0.0.1:18080:8080 developer-toolbox:ci
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:18080/readyz; then
+              echo "server is ready"
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18080/healthz | grep -q '"status":"ok"'
+          docker rm -f toolbox-ci
+      - name: Measure runtime metrics
+        run: ./scripts/measure-runtime.sh developer-toolbox:ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-metrics
+          path: artifacts/runtime-metrics.json
+          if-no-files-found: ignore
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
           image: developer-toolbox:ci
           format: spdx-json
           output-file: artifacts/sbom.spdx.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom
+          path: artifacts/sbom.spdx.json
+          if-no-files-found: ignore
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:

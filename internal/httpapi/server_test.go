@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -89,9 +90,41 @@ func TestSecurityHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 
-	expectedCSP := "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-	if got := rec.Header().Get("Content-Security-Policy"); got != expectedCSP {
+	expectedCSP := "default-src 'self'; " +
+		"connect-src 'self'; " +
+		"img-src 'self' data: blob:; " +
+		"style-src 'self' 'unsafe-inline'; " +
+		"script-src 'self'; " +
+		"object-src 'none'; " +
+		"base-uri 'none'; " +
+		"frame-ancestors 'none'"
+	got := rec.Header().Get("Content-Security-Policy")
+	if got != expectedCSP {
 		t.Errorf("CSP mismatch:\nexpected: %s\ngot:      %s", expectedCSP, got)
+	}
+
+	// script-src is the injection control and must never be relaxed. Assert the
+	// dangerous relaxations explicitly so a future edit to the policy string cannot
+	// loosen script execution without failing here.
+	for _, forbidden := range []string{
+		"script-src 'self' 'unsafe-inline'",
+		"script-src 'self' 'unsafe-eval'",
+		"script-src *",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("CSP must not permit %q, got: %s", forbidden, got)
+		}
+	}
+	for _, required := range []string{
+		"script-src 'self'",
+		"object-src 'none'",
+		"base-uri 'none'",
+		"frame-ancestors 'none'",
+		"connect-src 'self'",
+	} {
+		if !strings.Contains(got, required) {
+			t.Errorf("CSP must contain %q, got: %s", required, got)
+		}
 	}
 	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
 		t.Errorf("expected nosniff, got %q", got)
@@ -103,7 +136,7 @@ func TestSecurityHeaders(t *testing.T) {
 
 func TestSPAFallback(t *testing.T) {
 	mockFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("<!doctype html><html>SPA</html>")},
+		"index.html":       &fstest.MapFile{Data: []byte("<!doctype html><html>SPA</html>")},
 		"assets/style.css": &fstest.MapFile{Data: []byte("body { color: red; }")},
 	}
 
@@ -237,3 +270,212 @@ func TestUserDocsEndpoints(t *testing.T) {
 	}
 }
 
+// TestUnknownAPIPathReturnsJSON404 is the regression test for the SPA fallback
+// swallowing unmatched API paths: /api/extensions/typesense/health returned index.html
+// with status 200 while the extension was disabled, so a disabled endpoint was
+// indistinguishable from a healthy one.
+func TestUnknownAPIPathReturnsJSON404(t *testing.T) {
+	mockFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<!doctype html><html>SPA</html>")},
+	}
+	srv := NewServer(config.Config{}, &mockSearcher{}, mockFS)
+
+	for _, path := range []string{
+		"/api/does-not-exist",
+		"/api/extensions/typesense/health",
+		"/api/ai/evaluate",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: expected 404, got %d", path, rec.Code)
+		}
+		if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+			t.Errorf("%s: expected a JSON response, got %q", path, ct)
+		}
+		if strings.Contains(rec.Body.String(), "<html") {
+			t.Errorf("%s: an API path must never return the SPA shell", path)
+		}
+	}
+}
+
+// TestSPAFallbackOnlyForClientRoutes covers the Phase 1 requirement that the shell is
+// served "only for known client routes".
+func TestSPAFallbackOnlyForClientRoutes(t *testing.T) {
+	mockFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<!doctype html><html>SPA</html>")},
+	}
+	srv := NewServer(config.Config{}, &mockSearcher{}, mockFS)
+
+	// Known routes, including a deep link under one.
+	for _, path := range []string{"/", "/docs", "/data", "/api-workbench", "/docs/typescript/interfaces"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: expected the SPA shell, got %d", path, rec.Code)
+		}
+	}
+
+	// Unknown paths must 404 rather than render an empty application.
+	for _, path := range []string{"/not-a-tool", "/wp-admin", "/docsx"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: expected 404, got %d", path, rec.Code)
+		}
+	}
+}
+
+// TestClientRoutesCoverNavigation guards the routing contract between this list and
+// the browser application.
+func TestClientRoutesCoverNavigation(t *testing.T) {
+	required := []string{
+		"/", "/docs", "/data", "/regex", "/text", "/code-image",
+		"/api-workbench", "/diagrams", "/git", "/algorithms",
+		"/command", "/query", "/types", "/jwt", "/diff", "/sql", "/cron", "/encode",
+	}
+
+	present := map[string]bool{}
+	for _, r := range ClientRoutes {
+		present[r] = true
+	}
+	for _, r := range required {
+		if !present[r] {
+			t.Errorf("ClientRoutes is missing the navigation route %q", r)
+		}
+	}
+}
+
+// TestDocumentRouteAcceptsMultiSegmentID is the regression test for document ids that
+// contain a slash. With a single-segment {id} pattern only the percent-encoded form
+// matched, so the natural unencoded path an external client builds returned 404.
+func TestDocumentRouteAcceptsMultiSegmentID(t *testing.T) {
+	searcher := &mockSearcher{doc: docs.Document{
+		ID:          "regex/catastrophic-backtracking",
+		Source:      "regex",
+		Title:       "Catastrophic backtracking",
+		BodyHTML:    "<p>body</p>",
+		Attribution: "Fixture.",
+	}}
+	srv := NewServer(config.Config{}, searcher, nil)
+
+	for _, path := range []string{
+		"/api/docs/regex/catastrophic-backtracking",
+		"/api/docs/regex%2Fcatastrophic-backtracking",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: expected 200, got %d", path, rec.Code)
+			continue
+		}
+
+		var doc docs.Document
+		if err := json.NewDecoder(rec.Body).Decode(&doc); err != nil {
+			t.Errorf("%s: decode: %v", path, err)
+			continue
+		}
+		if doc.ID != "regex/catastrophic-backtracking" {
+			t.Errorf("%s: unexpected id %q", path, doc.ID)
+		}
+	}
+}
+
+// TestLiteralDocsRoutesOutrankTheWildcard guards the ServeMux precedence the
+// multi-segment document route depends on: /api/docs/search and /api/docs/sources
+// must not be swallowed by /api/docs/{id...}.
+func TestLiteralDocsRoutesOutrankTheWildcard(t *testing.T) {
+	srv := NewServer(config.Config{}, &mockSearcher{}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/search?q=anything", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("search route: expected 200, got %d", rec.Code)
+	}
+	// A document response would carry a bodyHtml field; a search response is an array.
+	if body := rec.Body.String(); !strings.HasPrefix(strings.TrimSpace(body), "[") {
+		t.Errorf("search route did not return a result array: %s", body)
+	}
+
+	reqSources := httptest.NewRequest(http.MethodGet, "/api/docs/sources", nil)
+	recSources := httptest.NewRecorder()
+	srv.ServeHTTP(recSources, reqSources)
+	if recSources.Code != http.StatusOK {
+		t.Errorf("sources route: expected 200, got %d", recSources.Code)
+	}
+}
+
+// TestSourcesEndpoint covers the derived source list that replaced the UI's
+// hardcoded four-entry filter.
+func TestSourcesEndpoint(t *testing.T) {
+	tempDir := t.TempDir()
+	userStore, err := docs.OpenUserStore(tempDir + "/sources-user.db")
+	if err != nil {
+		t.Fatalf("open user store: %v", err)
+	}
+	defer userStore.Close()
+
+	srv := NewServer(config.Config{}, docs.NewMultiSearcher(nil, userStore), nil)
+
+	// With no uploads, the user source is not offered at all.
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/sources", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var sources []docs.SourceSummary
+	if err := json.NewDecoder(rec.Body).Decode(&sources); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	for _, s := range sources {
+		if s.ID == "user" {
+			t.Error("the user source must not be listed while no uploads exist")
+		}
+	}
+
+	// After an upload it appears, with a count.
+	if _, err := userStore.InsertDocument(context.Background(), docs.UserDocumentInput{
+		Title:    "Runbook",
+		Filename: "runbook.md",
+		Content:  "# Deploy\nStep one.",
+	}); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	req2 := httptest.NewRequest(http.MethodGet, "/api/docs/sources", nil)
+	rec2 := httptest.NewRecorder()
+	srv.ServeHTTP(rec2, req2)
+
+	var after []docs.SourceSummary
+	if err := json.NewDecoder(rec2.Body).Decode(&after); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	found := false
+	for _, s := range after {
+		if s.ID == "user" {
+			found = true
+			if s.Count != 1 {
+				t.Errorf("expected a count of 1, got %d", s.Count)
+			}
+			if s.Title == "" {
+				t.Error("a source must carry a display title")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected the user source to be listed after an upload")
+	}
+}

@@ -17,6 +17,30 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       badge: 'Web Worker',
     },
     {
+      title: 'Command Reference',
+      path: '/command',
+      description: 'Explain a shell command token by token, with warnings for destructive flags. Nothing is executed — it is static analysis of the text you paste.',
+      badge: 'Explainer',
+    },
+    {
+      title: 'JSON Query',
+      path: '/query',
+      description: 'Run JSONPath expressions over a document with filters, slices and recursive descent. Filter expressions are parsed, never evaluated as code.',
+      badge: 'JSONPath',
+    },
+    {
+      title: 'Type Generator',
+      path: '/types',
+      description: 'Turn a JSON sample into type declarations for TypeScript, C#, Java, Kotlin, Go, Python and Rust, with optional and nullable fields inferred.',
+      badge: '7 languages',
+    },
+    {
+      title: 'JWT Inspector',
+      path: '/jwt',
+      description: 'Decode a JSON Web Token to read its header, claims and timing. Decode only — no signature verification and no validity claim.',
+      badge: 'Decode only',
+    },
+    {
       title: 'Regex Workbench',
       path: '/regex',
       description: 'Test ECMAScript regular expressions with real-time match highlights, capture group extraction, and replacement preview.',
@@ -29,6 +53,30 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       badge: 'Web Crypto',
     },
     {
+      title: 'Text Diff',
+      path: '/diff',
+      description: 'Compare two documents with a Myers minimal edit script, word-level highlighting inside changed lines, and unified-patch export.',
+      badge: 'Myers diff',
+    },
+    {
+      title: 'SQL Assistant',
+      path: '/sql',
+      description: 'Format a statement and review it for portability and safety across five dialects. No database connection — nothing can be executed.',
+      badge: '5 dialects',
+    },
+    {
+      title: 'Cron Visualizer',
+      path: '/cron',
+      description: 'Explain a cron expression field by field and project when it will actually fire, including the day-of-month/day-of-week OR trap.',
+      badge: 'Schedule',
+    },
+    {
+      title: 'Encoding & Time',
+      path: '/encode',
+      description: 'gzip compress and decompress, compute keyed HMACs with your own secret, and read one instant across many timezones.',
+      badge: 'Built-ins',
+    },
+    {
       title: 'Code Image Exporter',
       path: '/code-image',
       description: 'Render beautiful, configurable code cards with syntax highlighting and window chrome. Export safely to SVG and PNG.',
@@ -36,7 +84,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     },
     {
       title: 'API Workbench',
-      path: '/api',
+      path: '/api-workbench',
       description: 'Inspect OpenAPI 3.0/3.1 contracts, configure session-only environments, compose requests, and validate response schemas offline.',
       badge: 'OpenAPI / Guarded',
     },

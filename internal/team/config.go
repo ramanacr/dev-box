@@ -3,19 +3,41 @@ package team
 import (
 	"errors"
 	"strings"
+
+	"developer-toolbox/internal/config"
 )
 
 // Config encapsulates team-mode settings.
 type Config struct {
-	Enabled       bool
-	OIDCIssuer    string
-	OIDCAudience  string
-	OIDCClientID  string
-	WorkspaceDB   string
+	Enabled      bool
+	OIDCIssuer   string
+	OIDCAudience string
+	OIDCClientID string
+	WorkspaceDB  string
 }
 
-func Enabled(cfg Config) bool {
-	return cfg.Enabled
+// Enabled reports whether team mode is active for the given service configuration.
+// This is the interface fixed by the Phase 3 plan; it reads the centrally parsed
+// application config rather than the environment.
+func Enabled(cfg config.Config) bool {
+	return cfg.TeamMode
+}
+
+// ConfigFromApp projects the centrally parsed service configuration onto the
+// team-mode settings. Team mode owns no environment parsing of its own at runtime:
+// config.Load is the single place TOOLBOX_TEAM_MODE and the OIDC settings are read,
+// so the server and this package can never disagree about whether team mode is on.
+func ConfigFromApp(cfg config.Config) Config {
+	if !cfg.TeamMode {
+		return Config{Enabled: false}
+	}
+	return Config{
+		Enabled:      true,
+		OIDCIssuer:   cfg.OIDCIssuer,
+		OIDCAudience: cfg.OIDCAudience,
+		OIDCClientID: cfg.OIDCClientID,
+		WorkspaceDB:  cfg.WorkspaceDBPath,
+	}
 }
 
 // LoadConfig extracts team configuration from an environment lookup function.

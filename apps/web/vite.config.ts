@@ -7,7 +7,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: true,
+    // Source maps are emitted for local debugging but excluded from the shipped
+    // image: dist/ is copied wholesale into the container, and publishing full
+    // application source there both discloses it and inflates the image well beyond
+    // what the bundle itself costs. Set TOOLBOX_SOURCEMAPS=true to build them.
+    sourcemap: process.env.TOOLBOX_SOURCEMAPS === 'true',
     rollupOptions: {
       output: {
         manualChunks(id) {

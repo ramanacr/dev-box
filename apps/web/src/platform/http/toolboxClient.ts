@@ -30,6 +30,13 @@ export interface UserDocumentSummary {
   createdAt: string;
 }
 
+/** One documentation source available in the index. */
+export interface DocsSource {
+  id: string;
+  title: string;
+  count: number;
+}
+
 export class ToolboxApiError extends Error {
   constructor(
     message: string,
@@ -81,6 +88,32 @@ export const ToolboxClient = {
       throw new ToolboxApiError('Network request failed or local server is unreachable', 0);
     } finally {
       clearTimeout(timer);
+    }
+  },
+
+  /**
+   * Lists the documentation sources the index actually contains.
+   *
+   * Returns an empty list rather than throwing when the endpoint is unavailable: the
+   * source filter is an enhancement, and losing it should not break search.
+   */
+  async listSources(): Promise<DocsSource[]> {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const response = await fetch('/api/docs/sources', {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) return [];
+
+      const data = (await response.json()) as unknown;
+      return Array.isArray(data) ? (data as DocsSource[]) : [];
+    } catch {
+      return [];
+    } finally {
+      window.clearTimeout(timeout);
     }
   },
 

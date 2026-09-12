@@ -85,10 +85,21 @@ func (s *SQLiteSearcher) Search(ctx context.Context, q Query) ([]SearchResult, e
 
 	sourceFilter := strings.TrimSpace(q.Source)
 
+	// Column order is title, headings, body_html, tags, source (see packs/core/create.sql).
+	//
+	// Headings carry four times the weight of prose so that a query naming a section
+	// ranks the document containing that section first, which is the ranking the white
+	// paper's index design asks for. Tags sit above prose too: they hold identifiers
+	// and flags a reader searches for that may not appear verbatim in the text. Source
+	// is weighted below prose — matching a source name should barely influence
+	// relevance, because the source filter is the proper way to narrow by source.
+	//
+	// snippet() takes column index 2, the body, since that is what a reader wants to
+	// see excerpted. bm25() returns smaller values for better matches, hence ASC.
 	querySQL := `
 		SELECT d.id, d.title, d.url, d.source,
-		       snippet(document_fts, 1, '<mark>', '</mark>', '…', 16) AS snippet,
-		       bm25(document_fts, 8.0, 1.0, 2.0) AS score
+		       snippet(document_fts, 2, '<mark>', '</mark>', '…', 16) AS snippet,
+		       bm25(document_fts, 8.0, 4.0, 1.0, 2.0, 0.5) AS score
 		FROM document_fts
 		JOIN documents d ON d.rowid = document_fts.rowid
 		WHERE document_fts MATCH ?
@@ -168,4 +179,94 @@ func buildFTSQuery(input string) string {
 	}
 
 	return strings.Join(cleanTokens, " AND ")
+}
+
+// AsPack exposes the opened database as a streamable content pack, for consumers
+// such as the optional Typesense mirror.
+func (s *SQLiteSearcher) AsPack(manifest PackManifest) Pack {
+	return Pack{
+		Manifest: manifest,
+		Each:     s.eachDocument,
+	}
+}
+
+// eachDocument streams every document in id order. Rows are handed to fn one at a
+// time so that mirroring a large pack holds only a single row in memory.
+func (s *SQLiteSearcher) eachDocument(ctx context.Context, fn func(Document) error) error {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, source, title, url, body_html, attribution FROM documents ORDER BY id;`)
+	if err != nil {
+		return fmt.Errorf("stream documents: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var doc Document
+		if err := rows.Scan(&doc.ID, &doc.Source, &doc.Title, &doc.URL, &doc.BodyHTML, &doc.Attribution); err != nil {
+			return fmt.Errorf("scan document: %w", err)
+		}
+		if err := fn(doc); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+// Sources lists the distinct documentation sources in the pack with their document
+// counts, so the UI can build its filter from the index rather than a literal.
+func (s *SQLiteSearcher) Sources(ctx context.Context) ([]SourceSummary, error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("searcher not initialized")
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT source, count(*) FROM documents GROUP BY source ORDER BY source;`)
+	if err != nil {
+		return nil, fmt.Errorf("could not list sources")
+	}
+	defer rows.Close()
+
+	summaries := make([]SourceSummary, 0, 12)
+	for rows.Next() {
+		var summary SourceSummary
+		if err := rows.Scan(&summary.ID, &summary.Count); err != nil {
+			return nil, fmt.Errorf("could not read source row")
+		}
+		summary.Title = SourceTitle(summary.ID)
+		summaries = append(summaries, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("could not iterate sources")
+	}
+
+	return summaries, nil
+}
+
+// sourceTitles maps a source identifier to the name shown in the UI. An identifier
+// with no entry falls back to a capitalised form, so a new source is usable
+// immediately without a code change.
+var sourceTitles = map[string]string{
+	"angular":      "Angular",
+	"aspnetcore":   "ASP.NET Core",
+	"docker":       "Docker",
+	"git":          "Git",
+	"http":         "HTTP",
+	"jsonschema":   "JSON Schema",
+	"openapi":      "OpenAPI",
+	"regex":        "Regular Expressions",
+	"sql":          "SQL",
+	"typescript":   "TypeScript",
+	"user":         "User Uploads",
+	"project-docs": "Project Docs",
+}
+
+// SourceTitle returns a display name for a source identifier.
+func SourceTitle(id string) string {
+	if title, ok := sourceTitles[id]; ok {
+		return title
+	}
+	if id == "" {
+		return ""
+	}
+	return strings.ToUpper(id[:1]) + id[1:]
 }

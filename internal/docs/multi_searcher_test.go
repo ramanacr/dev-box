@@ -7,8 +7,8 @@ import (
 )
 
 func TestMultiSearcher(t *testing.T) {
-	// Core searcher with test DB
-	coreSearcher, err := OpenReadOnly("../../packs/core/docs.db")
+	// Core searcher over the shipped pack, which is a build product.
+	coreSearcher, err := OpenReadOnly(requireShippedCorePack(t))
 	if err != nil {
 		t.Fatalf("failed opening core docs: %v", err)
 	}

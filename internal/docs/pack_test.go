@@ -1,21 +1,42 @@
 package docs
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestValidatePack_ValidPack(t *testing.T) {
-	manifest, err := ValidatePack("../../packs/core")
+	requireShippedCorePack(t)
+
+	manifest, err := ValidatePack(shippedCorePackDir)
 	if err != nil {
 		t.Fatalf("expected valid pack, got error: %v", err)
 	}
 	if manifest.ID != "core" {
 		t.Errorf("expected id 'core', got %q", manifest.ID)
 	}
-	if len(manifest.Sources) != 4 {
-		t.Errorf("expected 4 sources, got %d", len(manifest.Sources))
+
+	// Pinning an exact source count made this fail whenever content was added, which
+	// tested the pack's contents rather than the validator. What matters is that
+	// every declared source carries the provenance a reviewer needs.
+	if len(manifest.Sources) == 0 {
+		t.Fatal("expected at least one declared source")
+	}
+	for i, src := range manifest.Sources {
+		if src.Name == "" {
+			t.Errorf("source [%d] has no name", i)
+		}
+		if src.License == "" {
+			t.Errorf("source %q declares no licence", src.Name)
+		}
+		if src.Attribution == "" {
+			t.Errorf("source %q declares no attribution", src.Name)
+		}
+		if src.URL == "" {
+			t.Errorf("source %q declares no url", src.Name)
+		}
 	}
 }
 
@@ -60,5 +81,137 @@ func TestValidatePack_MissingSourceAttribution(t *testing.T) {
 	_, err := ValidatePack(tmpDir)
 	if err == nil {
 		t.Fatal("expected error for missing attribution, got nil")
+	}
+}
+
+// TestValidatePackAcceptsModulePack covers the learning pack, which ships browser
+// modules rather than a documentation database. Its manifest previously carried none
+// of the required fields and would have been rejected outright.
+func TestValidatePackAcceptsModulePack(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `{
+	  "id": "learning",
+	  "version": "1.0.0",
+	  "kind": "module",
+	  "modules": ["git-graph-sandbox", "algorithm-visualizer"],
+	  "sources": [
+	    {"name": "Toolbox Git Simulation", "url": "local://learning/git", "license": "MIT", "attribution": "Authored for Developer Toolbox."}
+	  ]
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	got, err := ValidatePack(dir)
+	if err != nil {
+		t.Fatalf("expected a module pack to validate, got %v", err)
+	}
+	if got.Kind != PackKindModule {
+		t.Errorf("expected kind %q, got %q", PackKindModule, got.Kind)
+	}
+	if len(got.Modules) != 2 {
+		t.Errorf("expected 2 modules, got %d", len(got.Modules))
+	}
+}
+
+func TestValidatePackRejectsModulePackWithDatabase(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `{
+	  "id": "learning",
+	  "version": "1.0.0",
+	  "kind": "module",
+	  "database": "docs.db",
+	  "modules": ["git-graph-sandbox"],
+	  "sources": [{"name": "x", "url": "local://x", "license": "MIT", "attribution": "y"}]
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	if _, err := ValidatePack(dir); err == nil {
+		t.Fatal("a module pack declaring a database must be rejected")
+	}
+}
+
+func TestValidatePackRejectsModulePackWithoutModules(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `{
+	  "id": "learning",
+	  "version": "1.0.0",
+	  "kind": "module",
+	  "sources": [{"name": "x", "url": "local://x", "license": "MIT", "attribution": "y"}]
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	if _, err := ValidatePack(dir); err == nil {
+		t.Fatal("a module pack listing no modules must be rejected")
+	}
+}
+
+func TestValidatePackRejectsUnknownKind(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `{
+	  "id": "x", "version": "1.0.0", "kind": "something-else",
+	  "sources": [{"name": "x", "url": "local://x", "license": "MIT", "attribution": "y"}]
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	if _, err := ValidatePack(dir); err == nil {
+		t.Fatal("an unknown pack kind must be rejected")
+	}
+}
+
+// TestShippedPacksValidate keeps the repository's own packs honest: every manifest
+// under packs/ must satisfy the validator.
+func TestShippedPacksValidate(t *testing.T) {
+	entries, err := os.ReadDir(filepath.Join("..", "..", "packs"))
+	if err != nil {
+		t.Skipf("packs directory unavailable: %v", err)
+	}
+
+	checked := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join("..", "..", "packs", entry.Name())
+		if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {
+			continue
+		}
+
+		// A content pack's database is generated, so an unbuilt pack must not be
+		// reported as an invalid manifest. Read the declared database and skip the
+		// pack when it is absent; every other failure is a real defect.
+		var declared struct {
+			Database string `json:"database"`
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+		if err != nil {
+			t.Errorf("shipped pack %q has an unreadable manifest: %v", entry.Name(), err)
+			continue
+		}
+		if err := json.Unmarshal(raw, &declared); err != nil {
+			t.Errorf("shipped pack %q has invalid manifest JSON: %v", entry.Name(), err)
+			continue
+		}
+		if declared.Database != "" {
+			if _, err := os.Stat(filepath.Join(dir, declared.Database)); err != nil {
+				t.Logf("skipping pack %q: database not built (%v)", entry.Name(), err)
+				continue
+			}
+		}
+
+		checked++
+		if _, err := ValidatePack(dir); err != nil {
+			t.Errorf("shipped pack %q does not validate: %v", entry.Name(), err)
+		}
+	}
+
+	if checked == 0 {
+		t.Skip("no shipped pack manifests found")
 	}
 }

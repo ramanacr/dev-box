@@ -1,69 +1,245 @@
 # Developer Toolbox (`dev-box`)
 
-A lightweight, offline-capable developer workbench for Docker that consolidates documentation search, structured-data processing, regex inspection, text transforms, and code-image generation into a single secure, local-first containerized application.
+A lightweight, offline-capable developer workbench for Docker. It consolidates
+documentation search, command explanation, structured-data processing, JSON querying,
+type generation, regex inspection, text transforms, API contract testing, diagramming
+and interactive learning into a single local-first container.
 
-## Core Features
+Everything you paste stays in your browser unless you explicitly send it somewhere.
+The container is **17.6 MB**, idles at **~2.6 MiB** of RAM, and is ready in **under
+two seconds**.
 
-1. **Offline Documentation Search**: Multi-source reference search powered by a read-only SQLite FTS5 database with BM25 relevance ranking, highlighted excerpts, and deep permalinks.
-2. **User Document Ingestion & Management**: Drag-and-drop ingestion of Markdown (`.md`), HTML (`.html`), and plain text (`.txt`) files into an isolated, writable SQLite database (`packs/user/user-docs.db`) using WAL mode and FTS5 triggers with instant searchability.
-3. **Pack Builder CLI Tool**: Standalone utility (`pnpm pack:build --dir <dir> --name <pack>`) to compile local documentation directories into production-ready SQLite documentation packs with SHA-256 manifests.
-4. **Guarded API Workbench**:
-   - Client-side OpenAPI 3.0/3.1 and Swagger 2.0 parser with off-thread Web Worker processing, local `$ref` pointer dereferencing, and 5MB payload limit.
-   - Strict target policy permitting loopback (`127.0.0.1`, `localhost`, `::1`), RFC1918 private IPv4 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), and approved private DNS suffixes (`.local`, `.internal`, `.test`); first-use host confirmation dialog; public endpoints blocked by default.
-   - Session-only memory environments (`{{variable}}`), no persistence of secrets, auto-clearing on tab refresh, sensitive headers redacted (`authorization`, `cookie` -> `••••`).
-   - In-browser execution via `fetch()`, 30s timeout, response timing, binary handling, and Ajv 2020 contract validation.
-   - cURL and C# `HttpClient` code generator.
-5. **Offline Diagram Studio**:
-   - Mermaid diagram editor with strict security mode (`securityLevel: 'strict'`) preventing DOM/XSS script execution or external link clicks (`click ... href`), template snippets (flowchart, sequence, class, ER), and SVG/PNG local export.
-   - Excalidraw-style offline whiteboard canvas with drawing tools (rect, ellipse, arrow, freedraw), color picker, `.excalidraw` JSON import/export, and PNG export.
-   - Local workspace persistence via IndexedDB (`toolbox/v1/diagrams/`).
-6. **Structured Data Workbench**: In-browser formatters, validators, tree viewer, and inter-converters for JSON, YAML, XML, and CSV. Automatic JSON Schema Draft 2020-12 inference.
-7. **ECMAScript Regex Workbench**: Live pattern matching with capture group extraction, named group breakdown, and replacement preview.
-8. **Developer Utilities**: URL and Base64 encoders/decoders, HTML entity escaping, line sorter and deduplicator, case conversion, Web Crypto SHA-256/SHA-512 hashes, UUID v4 generator, and Unix timestamp converter.
-9. **Secret Redaction Engine**: Automatic pattern-based scanning for credentials (tokens, passwords, API keys, database connection strings) before file download.
-10. **Code Image Exporter**: Syntax-highlighted code cards with window chrome, whitespace and indentation preservation (`xml:space="preserve"`), tab expansion, and customizable themes, exporting locally to SVG and PNG.
-11. **Git Learning Sandbox**: In-browser Git DAG graph simulation supporting commits, branching, switching, merging, rebasing, resetting, reverting, and cherry-picking with progressive challenge lessons.
-12. **Algorithm Visualizer**: Interactive step-by-step visualizations of Bubble Sort, Merge Sort, BFS, and Dijkstra algorithms with accessible state tracking.
-13. **Light / Dark / System Theme Switcher**: Full theme customization across all tools with auto-system color scheme detection and persistent preference storage.
-14. **Optional Team Workspaces**: Opt-in asynchronous shared workspaces with OIDC authentication, SQLite WAL metadata storage (`workspace.db`), and RBAC authorization (`viewer`, `editor`, `admin`).
+## Tools
 
-## Quick Start
+### Documentation and reference
 
-### Running with Docker Compose
+- **Doc Search** — offline search over a read-only SQLite FTS5 pack with BM25
+  ranking, highlighted excerpts and deep permalinks. The shipped pack holds **51
+  documents across 10 sources** — HTTP, OpenAPI, JSON Schema, regular expressions,
+  Git, Docker, SQL, TypeScript, ASP.NET Core and Angular — in 296 KB, and measured
+  search p95 is **2.84 ms**. Title, headings, body and tags are indexed as separate
+  weighted columns, so a query naming a section ranks that document first.
+  All pack content is original and MIT-licensed, with each document linking to a
+  canonical upstream reference rather than reproducing it.
+- **User document ingestion** — drag and drop `.md`, `.html` or `.txt` into an
+  isolated writable SQLite store (WAL mode, FTS5 triggers) and search it immediately.
+- **Pack builder CLI** — `pnpm pack:build --dir <dir> --name <pack>` compiles a
+  documentation directory into a pack with a SHA-256 manifest.
+- **Command Reference** — paste a shell command and see what each token does, with
+  warnings for destructive or protection-disabling flags (`rm -rf`, `chmod 777`,
+  `curl … | sudo bash`, `git push --force`, `--insecure`). Nothing is executed and no
+  shell is invoked. Every description is independently authored; no manual pages are
+  redistributed, and an unrecognised command is reported as unrecognised rather than
+  guessed at.
+
+### Structured data
+
+- **Data Workbench** — format, validate, convert and tree-view JSON, YAML, XML and
+  CSV, with JSON Schema 2020-12 inference. Parsing runs in a Web Worker with byte and
+  node limits; YAML anchors, aliases and custom tags and XML external entities are
+  refused.
+- **JSON Query** — JSONPath with child, index, negative index, union, slice with
+  step, wildcard, recursive descent and comparison/presence filters. Filter
+  expressions are parsed into a typed form and never evaluated as code.
+- **Type Generator** — turn a JSON sample into declarations for TypeScript, C#, Java,
+  Kotlin, Go, Python and Rust. Optional and nullable fields are inferred by merging
+  the shapes actually observed.
+- **JWT Inspector** — decode a token's header, claims and timing. **Decode only:** a
+  signed token's payload is base64url-encoded, not encrypted, and this tool makes no
+  claim about authenticity. Timing claims are checked because they can be, without a
+  key.
+- **SQL Assistant** — format a statement without changing a single token, and review
+  it for unbounded writes, `= NULL`, comma joins, string concatenation and
+  per-dialect portability across ANSI, PostgreSQL, MySQL, SQL Server and SQLite. No
+  driver and no connection code: nothing here can execute a query. Shows the
+  parameterised form for your dialect, because that is the actual remedy.
+- **Text Diff** — Myers minimal edit script, so a small change in a large file reads
+  as a small change. Word-level highlighting inside similar lines, configurable
+  context, and unified-patch export.
+
+### API and diagrams
+
+- **API Workbench** — client-side OpenAPI 3.0/3.1 and Swagger 2.0 parsing in a Web
+  Worker, with local `$ref` dereferencing, remote `$ref` rejection and a 5 MB cap.
+  Requests are permitted only to loopback, RFC1918 private IPv4 and approved private
+  DNS suffixes, with a confirmation dialog on first use of each host; public hosts are
+  blocked by default. Environments live in session memory only and clear on refresh;
+  `authorization` and `cookie` render as `••••`. Responses are validated against the
+  contract with Ajv 2020. Generates cURL and C# `HttpClient` snippets.
+- **Diagram Studio** — Mermaid with `securityLevel: 'strict'`, plus a local
+  whiteboard canvas with `.excalidraw` import/export and PNG export. Diagrams persist
+  in IndexedDB.
+
+### Utilities and learning
+
+- **Regex Workbench** — ECMAScript only, and labelled as such. Live matching, capture
+  and named groups, replacement preview.
+- **Text and hashes** — URL and Base64 encode/decode, HTML entity escaping, line
+  sort and deduplicate, case conversion, Web Crypto SHA-256/SHA-512, UUID v4, Unix
+  timestamp conversion.
+- **Encoding and Time** — gzip compress/decompress via the browser's own
+  CompressionStream (and it tells you honestly when compression made the data
+  larger), HMAC with a key you supply, and one instant rendered across many IANA
+  timezones with daylight saving applied per date.
+- **Cron Visualizer** — explains each field, projects the next runs, and warns about
+  the traps: day-of-month and day-of-week are OR-ed rather than AND-ed, and day 31
+  simply never fires in a short month.
+- **Secret redaction** — every download is scanned for tokens, passwords, API keys
+  and connection strings, with a confirmation preview before the file is written.
+- **Code Image Exporter** — syntax-highlighted code cards with window chrome and
+  preserved whitespace, exported locally to SVG or PNG.
+- **Git Learning Sandbox** — a pure in-browser Git DAG simulation covering commit,
+  branch, switch, merge, rebase, reset, revert and cherry-pick, with progressive
+  lessons. It never touches the filesystem or runs `git`.
+- **Algorithm Visualizer** — eleven visualizers with an accessible state table
+  alongside each: bubble and merge sort; BFS, DFS and Dijkstra; heap build and
+  extract drawn as the tree the array represents; BST insert, in-order walk and
+  search; and hash tables under separate chaining, linear probing and quadratic
+  probing. Every step is an immutable snapshot, so you can step backwards freely.
+- **Theme switcher** — light, dark and system.
+
+## Quick start
 
 ```bash
 docker compose up -d
 ```
-Navigate to [http://127.0.0.1:8080](http://127.0.0.1:8080).
 
-### Local Development
+Then open [http://127.0.0.1:8080](http://127.0.0.1:8080).
 
-Prerequisites: Node.js 22+, pnpm 12+, Go 1.24+
+Compose publishes to `127.0.0.1` so the service is not exposed on your network. To
+run the image directly:
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Run frontend tests
-pnpm test
-
-# Run Go backend tests
-go test ./...
-
-# Build frontend production assets
-pnpm build
-
-# Verify bundle budgets
-node scripts/check-budgets.mjs
+docker run --rm -p 127.0.0.1:8080:8080 developer-toolbox:dev
 ```
 
-## Security & Architecture
+The container binds `0.0.0.0` inside its own network namespace; you control exposure
+with the port mapping. Publishing to a bare `-p 8080:8080` would expose it on every
+interface, so keep the `127.0.0.1:` prefix unless you intend otherwise.
 
-- **Local-First & Private**: Data processing is 100% client-side inside the browser. No pasted snippets or documents leave the machine.
-- **Loopback Binding**: Defaults to `127.0.0.1:8080` to prevent accidental network exposure.
-- **Strict Content Security Policy**: CSP headers enforced on all responses (`default-src 'self'`).
-- **Immutable Documentation Packs**: Read-only SQLite databases verified with SHA-256 cryptographic manifests.
+## Local development
+
+Prerequisites: Node.js 22+, pnpm 12+, Go 1.24+.
+
+```bash
+pnpm install
+```
+
+```bash
+pnpm lint
+```
+
+```bash
+pnpm test
+```
+
+```bash
+pnpm build
+```
+
+`lint` and `test` cover both the web application and the Go service. To run the
+end-to-end suite (it starts the real Go server itself, so no Docker daemon is
+needed):
+
+```bash
+pnpm e2e
+```
+
+To check the performance budgets:
+
+```bash
+pnpm budgets
+```
+
+```bash
+./scripts/measure-runtime.sh developer-toolbox:dev
+```
+
+## Optional features
+
+Everything below is **off by default**. The core image is fully functional with every
+flag unset, and that is the configuration CI verifies as its own job.
+
+### Team mode
+
+Shared workspaces with OIDC authentication, RBAC (`viewer`, `editor`, `admin`) and an
+audit trail, backed by a writable `workspace.db`. Anonymous localhost mode never
+creates that database.
+
+```bash
+docker compose --profile team up -d
+```
+
+Requires `TOOLBOX_TEAM_MODE=true`, `TOOLBOX_OIDC_ISSUER` and
+`TOOLBOX_OIDC_AUDIENCE`; the server refuses to start without them. Sign-in uses the
+authorization-code flow with PKCE. See
+[docs/operations/team-mode.md](docs/operations/team-mode.md).
+
+### Extensions
+
+| Flag | Effect |
+| --- | --- |
+| `TOOLBOX_FEATURE_TYPESENSE=true` | Routes search through a Typesense mirror, falling back to FTS5 on any error. Requires `TOOLBOX_TYPESENSE_URL`. |
+| `TOOLBOX_FEATURE_COLLABORATION=true` | Authenticated WebSocket relay for shared whiteboards. Requires team mode. |
+| `TOOLBOX_FEATURE_AI=true` | Opt-in AI **policy boundary** — evaluates consent, data classification, redaction and token budget. It calls no model. Requires `TOOLBOX_AI_GATEWAY_URL`. |
+
+Each enabled extension exposes `GET /api/extensions/{name}/health`.
+
+**These three have not passed their decision gates.** The code exists so the
+interfaces are reviewable and tested, not because the need has been demonstrated. The
+gate status for each is recorded honestly in
+[docs/adr/](docs/adr/) — see ADRs 0003, 0004 and 0005 — and the flags should stay
+unset until those tables are filled in with real measurements.
+
+## Companion packages
+
+Not part of the container.
+
+- **`packages/mcp-server`** — a Model Context Protocol server exposing `search_docs`
+  and `transform_data` over stdio, so an assistant on your machine can search your
+  offline docs. It only ever addresses a loopback toolbox URL, and exposes neither
+  API execution nor environment secrets.
+- **`packages/vscode`** — a VS Code extension whose single command opens your
+  selection in the local toolbox's doc search via `vscode.env.openExternal`. No
+  webview, no telemetry. A non-loopback `developerToolbox.url` is refused.
+
+See [docs/operations/mcp-and-vscode.md](docs/operations/mcp-and-vscode.md).
+
+## Security and architecture
+
+- **Local-first.** Transformation and visualisation happen in the browser. The Go
+  service serves content, manages optional shared workspaces, and never proxies
+  arbitrary outbound requests — that would make it an SSRF surface.
+- **Loopback by default.** The Go binary defaults to `127.0.0.1:8080`; in a container
+  exposure is controlled by the port mapping.
+- **Restrictive CSP** on every response: `default-src 'self'`, `script-src 'self'`
+  with no `unsafe-inline` or `unsafe-eval`, `object-src 'none'`, `base-uri 'none'`,
+  `frame-ancestors 'none'`, and no remote origin permitted for any resource type.
+  `style-src` permits inline styles — see
+  [ADR 0006](docs/adr/0006-content-security-policy-style-src.md) for why, and what is
+  deliberately not relaxed.
+- **Immutable content packs.** Read-only SQLite verified against a SHA-256 manifest
+  that also records each source's URL, licence and attribution. A writable pack
+  database is refused.
+- **OIDC tokens are verified, not merely decoded.** Signatures are checked against
+  the issuer's JWKS; `alg: none` and symmetric algorithms are rejected, and RSA keys
+  below 2048 bits are refused.
+- **No telemetry.** Structured stdout logs only, and they never contain query
+  strings, request bodies, document text, or tool input.
+
+## Documentation
+
+| Area | Document |
+| --- | --- |
+| Product and architecture direction | [white paper](docs/ai/developer-toolbox-white-paper.md) |
+| How work is proposed, built and accepted | [delivery standard](docs/ai/developer-toolbox-product-delivery-standard.md) |
+| Specification alignment audit | [alignment-audit.md](docs/release/alignment-audit.md) |
+| Remediation evidence and known gaps | [remediation-acceptance.md](docs/release/remediation-acceptance.md) |
+| Architecture decisions | [docs/adr/](docs/adr/) |
+| Threat models | [docs/security/](docs/security/) |
+| Operations | [docs/operations/](docs/operations/) |
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) and [Third-Party Notices](docs/legal/third-party-notices.md).
+MIT. See [LICENSE](LICENSE) and
+[Third-Party Notices](docs/legal/third-party-notices.md).

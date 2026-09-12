@@ -1,12 +1,25 @@
 {
-  "name": "learning-algorithms-git",
+  "id": "learning",
   "version": "1.0.0",
+  "kind": "module",
   "title": "Interactive Git and Algorithms Visual Learning Pack",
   "description": "Visual sandboxes for exploring Git DAG branching/rebasing and sorting/graph algorithms offline.",
-  "license": "MIT",
-  "attribution": "Developer Toolbox Open Source Project",
   "modules": [
     "git-graph-sandbox",
     "algorithm-visualizer"
+  ],
+  "sources": [
+    {
+      "name": "Developer Toolbox Git Simulation",
+      "url": "local://learning/git-graph-sandbox",
+      "license": "MIT",
+      "attribution": "Original simulation and lesson content authored for Developer Toolbox. The commit model is an independent implementation and contains no Git source code."
+    },
+    {
+      "name": "Developer Toolbox Algorithm Visualizer",
+      "url": "local://learning/algorithm-visualizer",
+      "license": "MIT",
+      "attribution": "Original step generators and lesson content authored for Developer Toolbox. Algorithms are textbook procedures implemented independently; no third-party educational content is redistributed."
+    }
   ]
 }

@@ -1,4 +1,13 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+import {
+  fetchIdentity,
+  getIdToken,
+  handleRedirectCallback,
+  signIn,
+  signOut,
+  teamFetch,
+  type TeamIdentity,
+} from './authClient';
 
 export interface WorkspaceItem {
   id: string;
@@ -7,132 +16,230 @@ export interface WorkspaceItem {
   createdAt: string;
 }
 
+interface TeamStatus extends TeamIdentity {
+  issuer?: string;
+  clientId?: string;
+}
+
 export function WorkspacePage() {
-  const [teamStatus, setTeamStatus] = useState<{ enabled: boolean; authenticated?: boolean; user?: any } | null>(null);
+  const [status, setStatus] = useState<TeamStatus | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [newWsName, setNewWsName] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadStatus = async () => {
+    // /api/team/me returns the OIDC issuer and client id when unauthenticated, which
+    // is what the sign-in button needs to start the redirect.
+    try {
+      const response = await teamFetch('/api/team/me');
+      const data = await response.json();
+      setStatus({
+        enabled: data.enabled === true,
+        authenticated: data.authenticated === true,
+        user: data.user,
+        issuer: data.issuer,
+        clientId: data.clientId,
+      });
+      return data.authenticated === true;
+    } catch {
+      setStatus(await fetchIdentity());
+      return false;
+    }
+  };
+
+  const loadWorkspaces = async () => {
+    try {
+      const response = await teamFetch('/api/team/workspaces');
+      if (!response.ok) {
+        if (response.status === 401) {
+          setStatus((prev) => (prev ? { ...prev, authenticated: false } : prev));
+        }
+        return;
+      }
+      const data = await response.json();
+      if (Array.isArray(data)) setWorkspaces(data);
+    } catch {
+      setErrorMsg('Could not reach the workspace service.');
+    }
+  };
 
   useEffect(() => {
-    fetch('/api/team/me')
-      .then((res) => res.json())
-      .then((data) => {
-        setTeamStatus(data);
-        if (data.authenticated) {
-          fetchWorkspaces();
-        }
-      })
-      .catch(() => {
-        setTeamStatus({ enabled: false });
-      });
+    let cancelled = false;
+
+    (async () => {
+      // Complete the provider redirect first; otherwise the identity call below runs
+      // before the token exists and the page flashes the signed-out state.
+      const callback = await handleRedirectCallback();
+      if (cancelled) return;
+      if (callback.error) {
+        setErrorMsg(callback.error);
+      }
+
+      const authenticated = await loadStatus();
+      if (cancelled) return;
+      if (authenticated) {
+        await loadWorkspaces();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const fetchWorkspaces = () => {
-    fetch('/api/team/workspaces')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setWorkspaces(data);
-      })
-      .catch(() => {});
+  const handleSignIn = async () => {
+    if (!status?.issuer || !status?.clientId) {
+      setErrorMsg('This server has not published an OIDC issuer and client id.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await signIn({ issuer: status.issuer, clientId: status.clientId });
+    } catch (error) {
+      setBusy(false);
+      setErrorMsg(error instanceof Error ? error.message : 'Sign-in failed.');
+    }
   };
 
-  const handleCreateWorkspace = (e: Event) => {
+  const handleSignOut = () => {
+    signOut();
+    setWorkspaces([]);
+    setStatus((prev) => (prev ? { ...prev, authenticated: false } : prev));
+  };
+
+  const handleCreateWorkspace = async (e: Event) => {
     e.preventDefault();
-    if (!newWsName.trim()) return;
+    const name = newWsName.trim();
+    if (!name) return;
 
-    fetch('/api/team/workspaces', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newWsName.trim() }),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to create workspace');
-        }
-        return res.json();
-      })
-      .then(() => {
-        setNewWsName('');
-        setErrorMsg(null);
-        fetchWorkspaces();
-      })
-      .catch((err) => {
-        setErrorMsg(err.message);
+    setBusy(true);
+    setErrorMsg(null);
+    try {
+      const response = await teamFetch('/api/team/workspaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
       });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create workspace');
+      }
+      setNewWsName('');
+      await loadWorkspaces();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Failed to create workspace');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (!teamStatus || !teamStatus.enabled) {
+  if (!status) {
     return (
-      <div className="card" style={{ maxWidth: '700px', margin: '40px auto', textAlign: 'center' }}>
-        <h2>Localhost Anonymous Mode</h2>
-        <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>
-          Team collaboration mode is optional and currently <strong>disabled</strong> on this instance.
+      <div className="card team-notice">
+        <p className="muted">Checking team mode…</p>
+      </div>
+    );
+  }
+
+  if (!status.enabled) {
+    return (
+      <div className="card team-notice">
+        <h2>Localhost anonymous mode</h2>
+        <p className="muted">
+          Team collaboration mode is optional and currently <strong>disabled</strong> on this
+          instance. Every tool remains fully available; drafts stay in this browser.
         </p>
-        <div style={{ marginTop: '16px', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
-          To activate Team Mode, start the container with <code>TOOLBOX_TEAM_MODE=true</code>, <code>TOOLBOX_OIDC_ISSUER</code>, and an OIDC provider.
+        <div className="team-hint">
+          To activate team mode, start the container with <code>TOOLBOX_TEAM_MODE=true</code>,{' '}
+          <code>TOOLBOX_OIDC_ISSUER</code>, and <code>TOOLBOX_OIDC_AUDIENCE</code>. See{' '}
+          <code>docs/operations/team-mode.md</code>.
         </div>
       </div>
     );
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div>
-        <h2>Shared Workspaces</h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-          Manage asynchronous shared team workspaces with OIDC authentication and role access controls.
+  if (!status.authenticated || !getIdToken()) {
+    return (
+      <div className="card team-notice">
+        <h2>Sign in to shared workspaces</h2>
+        <p className="muted">
+          Team mode is enabled on this server. Shared workspaces require an
+          authenticated identity from the configured provider.
         </p>
+        {errorMsg && (
+          <div role="alert" className="alert alert-danger">
+            {errorMsg}
+          </div>
+        )}
+        <button className="btn btn-primary" onClick={handleSignIn} disabled={busy}>
+          {busy ? 'Redirecting…' : 'Sign in with OIDC'}
+        </button>
+        <p className="team-hint">
+          Your browser-local drafts are never uploaded by signing in. Only workspaces
+          you explicitly create or join are shared.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="stack-lg">
+      <div className="row-between">
+        <div>
+          <h2>Shared workspaces</h2>
+          <p className="muted">
+            Asynchronous shared team workspaces with OIDC authentication and role
+            access control.
+          </p>
+        </div>
+        <div className="row-gap">
+          <span className="badge">{status.user?.name || status.user?.email || 'Signed in'}</span>
+          <button className="btn" onClick={handleSignOut}>
+            Sign out
+          </button>
+        </div>
       </div>
 
       {errorMsg && (
-        <div style={{ padding: '10px 14px', backgroundColor: 'var(--danger-color)', color: '#fff', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
+        <div role="alert" className="alert alert-danger">
           {errorMsg}
         </div>
       )}
 
-      {/* Create Workspace */}
       <div className="card">
-        <h3 style={{ fontSize: '1rem', marginBottom: '10px' }}>Create Shared Workspace</h3>
-        <form onSubmit={handleCreateWorkspace} style={{ display: 'flex', gap: '10px', maxWidth: '500px' }}>
+        <h3 className="card-title">Create shared workspace</h3>
+        <form onSubmit={handleCreateWorkspace} className="row-gap form-inline">
           <input
             type="text"
             className="input"
             placeholder="e.g. Backend Services Team"
+            aria-label="Workspace name"
             value={newWsName}
             onInput={(e) => setNewWsName((e.target as HTMLInputElement).value)}
           />
-          <button type="submit" className="btn btn-primary">Create</button>
+          <button type="submit" className="btn btn-primary" disabled={busy || !newWsName.trim()}>
+            Create
+          </button>
         </form>
       </div>
 
-      {/* Workspaces List */}
       <div className="card">
-        <h3 style={{ fontSize: '1rem', marginBottom: '14px' }}>Your Shared Workspaces</h3>
+        <h3 className="card-title">Your shared workspaces</h3>
         {workspaces.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No shared workspaces joined yet.</p>
+          <p className="muted small">No shared workspaces joined yet.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <ul className="workspace-list">
             {workspaces.map((ws) => (
-              <div
-                key={ws.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 14px',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  borderRadius: 'var(--radius-md)',
-                }}
-              >
+              <li key={ws.id} className="workspace-row">
                 <div>
                   <strong>{ws.name}</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {ws.id}</div>
+                  <div className="mono-xs muted">ID: {ws.id}</div>
                 </div>
-                <span className="badge" style={{ fontSize: '0.75rem' }}>Shared</span>
-              </div>
+                <span className="badge">Shared</span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
     </div>

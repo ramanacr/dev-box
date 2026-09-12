@@ -12,8 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Version comes from package.json's packageManager field.
-      - uses: pnpm/action-setup@v4
+      # pnpm comes from corepack, reading the version from package.json's
+      # packageManager field - the same mechanism the Dockerfile uses, so the
+      # image and CI cannot drift. pnpm/action-setup was doing this job until
+      # its self-installer started failing on the Node 24 runner
+      # ("self-installer exits with code 1"); corepack ships with Node and
+      # needs no third-party action. This runs before setup-node because the
+      # 'pnpm' cache key resolves the store directory by invoking pnpm.
+      - run: corepack enable && corepack install
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -61,8 +67,14 @@ jobs:
     needs: [web-quality, server-quality]
     steps:
       - uses: actions/checkout@v4
-      # Version comes from package.json's packageManager field.
-      - uses: pnpm/action-setup@v4
+      # pnpm comes from corepack, reading the version from package.json's
+      # packageManager field - the same mechanism the Dockerfile uses, so the
+      # image and CI cannot drift. pnpm/action-setup was doing this job until
+      # its self-installer started failing on the Node 24 runner
+      # ("self-installer exits with code 1"); corepack ships with Node and
+      # needs no third-party action. This runs before setup-node because the
+      # 'pnpm' cache key resolves the store directory by invoking pnpm.
+      - run: corepack enable && corepack install
       - uses: actions/setup-node@v4
         with:
           node-version: 22

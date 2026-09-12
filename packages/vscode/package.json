@@ -1,0 +1,71 @@
+{
+  "name": "@toolbox/vscode",
+  "displayName": "Developer Toolbox",
+  "description": "Look up selected text in your local, offline Developer Toolbox documentation.",
+  "version": "1.0.0",
+  "private": true,
+  "publisher": "developer-toolbox",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:developerToolbox.searchDocs"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "developerToolbox.searchDocs",
+        "title": "Developer Toolbox: Search Documentation"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "developerToolbox.searchDocs",
+          "when": "editorHasSelection",
+          "group": "navigation@10"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "developerToolbox.searchDocs",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Developer Toolbox",
+      "properties": {
+        "developerToolbox.url": {
+          "type": "string",
+          "default": "http://127.0.0.1:8080",
+          "scope": "machine",
+          "markdownDescription": "Base URL of your local Developer Toolbox container. Must be a loopback address; remote hosts are refused so a workspace setting cannot redirect your selected code elsewhere."
+        }
+      }
+    }
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "The extension only opens a local URL and never executes workspace code."
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

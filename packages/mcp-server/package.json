@@ -2,12 +2,28 @@
   "name": "@toolbox/mcp-server",
   "version": "1.0.0",
   "description": "Model Context Protocol (MCP) server for local Developer Toolbox integration",
-  "main": "dist/index.js",
   "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "toolbox-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "test": "vitest run"
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "yaml": "^2.7.0",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2",
     "vitest": "^3.2.7"
   }
 }

@@ -3,10 +3,14 @@
   "private": true,
   "packageManager": "pnpm@12.3.4",
   "scripts": {
-    "lint": "pnpm --filter @toolbox/web lint",
-    "test": "pnpm --filter @toolbox/web test",
-    "build": "pnpm --filter @toolbox/web build",
+    "lint": "pnpm --filter @toolbox/web lint && go vet ./...",
+    "lint:go": "gofmt -l cmd internal && go vet ./...",
+    "test": "pnpm -r test && go test ./...",
+    "test:web": "pnpm --filter @toolbox/web test",
+    "test:go": "go test ./...",
+    "build": "pnpm --filter @toolbox/web build && go build ./cmd/toolbox-server",
     "e2e": "pnpm --filter @toolbox/web e2e",
-    "pack:build": "node scripts/build-pack.mjs"
+    "pack:build": "node scripts/build-pack.mjs",
+    "budgets": "node scripts/check-budgets.mjs"
   }
 }

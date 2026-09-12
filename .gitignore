@@ -35,3 +35,8 @@ artifacts/
 # Local tooling indexes
 .codegraph/
 .tmp/
+
+# A locally generated scratch pack: its manifest was committed in Phase 1, but the
+# database it checksums is a build product with no recipe in this repository, so no
+# clone could ever satisfy the manifest. Kept out of the tree rather than tracked.
+packs/project-docs/

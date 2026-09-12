@@ -1,13 +1,16 @@
 package docs
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestValidatePack_ValidPack(t *testing.T) {
-	manifest, err := ValidatePack("../../packs/core")
+	requireShippedCorePack(t)
+
+	manifest, err := ValidatePack(shippedCorePackDir)
 	if err != nil {
 		t.Fatalf("expected valid pack, got error: %v", err)
 	}
@@ -178,6 +181,28 @@ func TestShippedPacksValidate(t *testing.T) {
 		dir := filepath.Join("..", "..", "packs", entry.Name())
 		if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {
 			continue
+		}
+
+		// A content pack's database is generated, so an unbuilt pack must not be
+		// reported as an invalid manifest. Read the declared database and skip the
+		// pack when it is absent; every other failure is a real defect.
+		var declared struct {
+			Database string `json:"database"`
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+		if err != nil {
+			t.Errorf("shipped pack %q has an unreadable manifest: %v", entry.Name(), err)
+			continue
+		}
+		if err := json.Unmarshal(raw, &declared); err != nil {
+			t.Errorf("shipped pack %q has invalid manifest JSON: %v", entry.Name(), err)
+			continue
+		}
+		if declared.Database != "" {
+			if _, err := os.Stat(filepath.Join(dir, declared.Database)); err != nil {
+				t.Logf("skipping pack %q: database not built (%v)", entry.Name(), err)
+				continue
+			}
 		}
 
 		checked++

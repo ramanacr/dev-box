@@ -33,6 +33,7 @@ type WorkspaceMember struct {
 	WorkspaceID string    `json:"workspaceId"`
 	UserSubject string    `json:"userSubject"`
 	Role        auth.Role `json:"role"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type AuditRecord struct {
@@ -113,6 +114,14 @@ func (s *Store) migrate() error {
 		action TEXT NOT NULL,
 		target_id TEXT NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS diagram_snapshots (
+		workspace_id TEXT PRIMARY KEY,
+		payload BLOB NOT NULL,
+		updated_by TEXT NOT NULL,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 	);
 
 	CREATE TABLE IF NOT EXISTS active_packs (
@@ -215,6 +224,98 @@ func (s *Store) ListWorkspaces(ctx context.Context, userSubject string) ([]Works
 		workspaces = append(workspaces, ws)
 	}
 	return workspaces, rows.Err()
+}
+
+// ErrWorkspaceNotFound is returned when a workspace id does not exist. Callers
+// translate this to 404 so that an inaccessible workspace is indistinguishable from
+// a missing one.
+var ErrWorkspaceNotFound = errors.New("workspace not found")
+
+func (s *Store) GetWorkspace(ctx context.Context, workspaceID string) (Workspace, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `SELECT id, name, owner_subject, created_at, updated_at FROM workspaces WHERE id = ?;`
+
+	var ws Workspace
+	err := s.db.QueryRowContext(ctx, query, workspaceID).
+		Scan(&ws.ID, &ws.Name, &ws.OwnerSubject, &ws.CreatedAt, &ws.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Workspace{}, ErrWorkspaceNotFound
+	}
+	if err != nil {
+		return Workspace{}, err
+	}
+	return ws, nil
+}
+
+// RenameWorkspace updates a workspace name and records an audit event. Only the new
+// name is stored; no workspace content ever reaches the audit trail.
+func (s *Store) RenameWorkspace(ctx context.Context, actorSubject, workspaceID, name string) (Workspace, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx,
+		`UPDATE workspaces SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;`,
+		name, workspaceID)
+	if err != nil {
+		return Workspace{}, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return Workspace{}, err
+	}
+	if affected == 0 {
+		return Workspace{}, ErrWorkspaceNotFound
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO audit_events (actor_id, action, target_id) VALUES (?, 'rename-workspace', ?);`,
+		actorSubject, workspaceID); err != nil {
+		return Workspace{}, err
+	}
+
+	var ws Workspace
+	if err := tx.QueryRowContext(ctx,
+		`SELECT id, name, owner_subject, created_at, updated_at FROM workspaces WHERE id = ?;`,
+		workspaceID).Scan(&ws.ID, &ws.Name, &ws.OwnerSubject, &ws.CreatedAt, &ws.UpdatedAt); err != nil {
+		return Workspace{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Workspace{}, err
+	}
+	return ws, nil
+}
+
+// ListMembers returns the membership roster for a workspace.
+func (s *Store) ListMembers(ctx context.Context, workspaceID string) ([]WorkspaceMember, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT workspace_id, user_subject, role, created_at
+		 FROM workspace_members WHERE workspace_id = ? ORDER BY created_at;`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	members := []WorkspaceMember{}
+	for rows.Next() {
+		var m WorkspaceMember
+		if err := rows.Scan(&m.WorkspaceID, &m.UserSubject, &m.Role, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		members = append(members, m)
+	}
+	return members, rows.Err()
 }
 
 func (s *Store) GetMemberRole(ctx context.Context, workspaceID, userSubject string) (auth.Role, error) {
@@ -337,4 +438,43 @@ func (s *Store) ListAuditRecords(ctx context.Context) ([]AuditRecord, error) {
 		audits = append(audits, a)
 	}
 	return audits, rows.Err()
+}
+
+// SaveDiagramSnapshot stores the latest whiteboard state for a workspace.
+//
+// Only one snapshot is kept per workspace: this is shared current state, not a
+// revision history, and retaining every frame of a live drawing session would grow
+// the workspace database without bound. The payload is opaque canvas JSON and is
+// never written to the audit trail.
+func (s *Store) SaveDiagramSnapshot(ctx context.Context, workspaceID, actorID string, payload []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `
+	INSERT INTO diagram_snapshots (workspace_id, payload, updated_by, updated_at)
+	VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+	ON CONFLICT(workspace_id) DO UPDATE SET
+		payload = excluded.payload,
+		updated_by = excluded.updated_by,
+		updated_at = CURRENT_TIMESTAMP;
+	`
+	_, err := s.db.ExecContext(ctx, query, workspaceID, payload, actorID)
+	return err
+}
+
+// LoadDiagramSnapshot returns the stored whiteboard state, or nil when none exists.
+func (s *Store) LoadDiagramSnapshot(ctx context.Context, workspaceID string) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var payload []byte
+	err := s.db.QueryRowContext(ctx,
+		`SELECT payload FROM diagram_snapshots WHERE workspace_id = ?;`, workspaceID).Scan(&payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
 }

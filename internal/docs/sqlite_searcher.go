@@ -169,3 +169,34 @@ func buildFTSQuery(input string) string {
 
 	return strings.Join(cleanTokens, " AND ")
 }
+
+// AsPack exposes the opened database as a streamable content pack, for consumers
+// such as the optional Typesense mirror.
+func (s *SQLiteSearcher) AsPack(manifest PackManifest) Pack {
+	return Pack{
+		Manifest: manifest,
+		Each:     s.eachDocument,
+	}
+}
+
+// eachDocument streams every document in id order. Rows are handed to fn one at a
+// time so that mirroring a large pack holds only a single row in memory.
+func (s *SQLiteSearcher) eachDocument(ctx context.Context, fn func(Document) error) error {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, source, title, url, body_html, attribution FROM documents ORDER BY id;`)
+	if err != nil {
+		return fmt.Errorf("stream documents: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var doc Document
+		if err := rows.Scan(&doc.ID, &doc.Source, &doc.Title, &doc.URL, &doc.BodyHTML, &doc.Attribution); err != nil {
+			return fmt.Errorf("scan document: %w", err)
+		}
+		if err := fn(doc); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}

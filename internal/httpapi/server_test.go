@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -89,9 +90,41 @@ func TestSecurityHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 
-	expectedCSP := "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-	if got := rec.Header().Get("Content-Security-Policy"); got != expectedCSP {
+	expectedCSP := "default-src 'self'; " +
+		"connect-src 'self'; " +
+		"img-src 'self' data: blob:; " +
+		"style-src 'self' 'unsafe-inline'; " +
+		"script-src 'self'; " +
+		"object-src 'none'; " +
+		"base-uri 'none'; " +
+		"frame-ancestors 'none'"
+	got := rec.Header().Get("Content-Security-Policy")
+	if got != expectedCSP {
 		t.Errorf("CSP mismatch:\nexpected: %s\ngot:      %s", expectedCSP, got)
+	}
+
+	// script-src is the injection control and must never be relaxed. Assert the
+	// dangerous relaxations explicitly so a future edit to the policy string cannot
+	// loosen script execution without failing here.
+	for _, forbidden := range []string{
+		"script-src 'self' 'unsafe-inline'",
+		"script-src 'self' 'unsafe-eval'",
+		"script-src *",
+	} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("CSP must not permit %q, got: %s", forbidden, got)
+		}
+	}
+	for _, required := range []string{
+		"script-src 'self'",
+		"object-src 'none'",
+		"base-uri 'none'",
+		"frame-ancestors 'none'",
+		"connect-src 'self'",
+	} {
+		if !strings.Contains(got, required) {
+			t.Errorf("CSP must contain %q, got: %s", required, got)
+		}
 	}
 	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
 		t.Errorf("expected nosniff, got %q", got)
@@ -103,7 +136,7 @@ func TestSecurityHeaders(t *testing.T) {
 
 func TestSPAFallback(t *testing.T) {
 	mockFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("<!doctype html><html>SPA</html>")},
+		"index.html":       &fstest.MapFile{Data: []byte("<!doctype html><html>SPA</html>")},
 		"assets/style.css": &fstest.MapFile{Data: []byte("body { color: red; }")},
 	}
 
@@ -237,3 +270,81 @@ func TestUserDocsEndpoints(t *testing.T) {
 	}
 }
 
+// TestUnknownAPIPathReturnsJSON404 is the regression test for the SPA fallback
+// swallowing unmatched API paths: /api/extensions/typesense/health returned index.html
+// with status 200 while the extension was disabled, so a disabled endpoint was
+// indistinguishable from a healthy one.
+func TestUnknownAPIPathReturnsJSON404(t *testing.T) {
+	mockFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<!doctype html><html>SPA</html>")},
+	}
+	srv := NewServer(config.Config{}, &mockSearcher{}, mockFS)
+
+	for _, path := range []string{
+		"/api/does-not-exist",
+		"/api/extensions/typesense/health",
+		"/api/ai/evaluate",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: expected 404, got %d", path, rec.Code)
+		}
+		if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+			t.Errorf("%s: expected a JSON response, got %q", path, ct)
+		}
+		if strings.Contains(rec.Body.String(), "<html") {
+			t.Errorf("%s: an API path must never return the SPA shell", path)
+		}
+	}
+}
+
+// TestSPAFallbackOnlyForClientRoutes covers the Phase 1 requirement that the shell is
+// served "only for known client routes".
+func TestSPAFallbackOnlyForClientRoutes(t *testing.T) {
+	mockFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<!doctype html><html>SPA</html>")},
+	}
+	srv := NewServer(config.Config{}, &mockSearcher{}, mockFS)
+
+	// Known routes, including a deep link under one.
+	for _, path := range []string{"/", "/docs", "/data", "/api-workbench", "/docs/typescript/interfaces"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: expected the SPA shell, got %d", path, rec.Code)
+		}
+	}
+
+	// Unknown paths must 404 rather than render an empty application.
+	for _, path := range []string{"/not-a-tool", "/wp-admin", "/docsx"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: expected 404, got %d", path, rec.Code)
+		}
+	}
+}
+
+// TestClientRoutesCoverNavigation guards the routing contract between this list and
+// the browser application.
+func TestClientRoutesCoverNavigation(t *testing.T) {
+	required := []string{"/", "/docs", "/data", "/regex", "/text", "/code-image",
+		"/api-workbench", "/diagrams", "/git", "/algorithms"}
+
+	present := map[string]bool{}
+	for _, r := range ClientRoutes {
+		present[r] = true
+	}
+	for _, r := range required {
+		if !present[r] {
+			t.Errorf("ClientRoutes is missing the navigation route %q", r)
+		}
+	}
+}

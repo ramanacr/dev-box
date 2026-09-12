@@ -182,3 +182,132 @@ func (b *TypesenseBackend) IndexDocument(ctx context.Context, doc docs.Document)
 
 	return nil
 }
+
+// docsCollectionSchema is the Typesense collection the mirror writes into. Field
+// names match the JSON the adapter's search mapping expects.
+var docsCollectionSchema = map[string]any{
+	"name": "docs",
+	"fields": []map[string]any{
+		{"name": "source", "type": "string", "facet": true},
+		{"name": "title", "type": "string"},
+		{"name": "url", "type": "string", "index": false, "optional": true},
+		{"name": "bodyHtml", "type": "string"},
+	},
+	"default_sorting_field": "",
+}
+
+// EnsureCollection creates the docs collection if it does not already exist.
+//
+// An existing collection is not an error: mirroring must be safe to re-run, so a 409
+// from Typesense is treated as success.
+func (b *TypesenseBackend) EnsureCollection(ctx context.Context) error {
+	payload, err := json.Marshal(docsCollectionSchema)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.baseURL+"/collections", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-TYPESENSE-API-KEY", b.apiKey.Expose())
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := b.httpClient.Do(req)
+	if err != nil {
+		// Never wrap the raw error: a transport error can embed the request URL, and
+		// the caller may log it. The API key travels in a header rather than the URL,
+		// but keeping the message synthetic removes the question entirely.
+		return errors.New("typesense collection creation failed: backend unreachable")
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		return nil
+	case http.StatusConflict:
+		// Collection already present; mirroring is idempotent.
+		return nil
+	default:
+		return fmt.Errorf("typesense collection creation rejected with status %d", resp.StatusCode)
+	}
+}
+
+// MirrorPack copies a validated content pack into Typesense.
+//
+// SQLite FTS5 remains the content authority: this is a mirror for query performance
+// only, and a failure here must never make documentation unavailable. Documents are
+// streamed and upserted in batches so that a large pack does not have to be held in
+// memory.
+func (b *TypesenseBackend) MirrorPack(ctx context.Context, pack docs.Pack) error {
+	if pack.Each == nil {
+		return errors.New("pack does not support document enumeration")
+	}
+
+	if err := b.EnsureCollection(ctx); err != nil {
+		return err
+	}
+
+	const batchSize = 200
+	batch := make([]docs.Document, 0, batchSize)
+
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		if err := b.importDocuments(ctx, batch); err != nil {
+			return err
+		}
+		batch = batch[:0]
+		return nil
+	}
+
+	err := pack.Each(ctx, func(doc docs.Document) error {
+		batch = append(batch, doc)
+		if len(batch) >= batchSize {
+			return flush()
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return flush()
+}
+
+// importDocuments upserts a batch using Typesense's JSONL import endpoint.
+func (b *TypesenseBackend) importDocuments(ctx context.Context, batch []docs.Document) error {
+	var body bytes.Buffer
+	encoder := json.NewEncoder(&body)
+	for _, doc := range batch {
+		if err := encoder.Encode(map[string]any{
+			"id":       doc.ID,
+			"source":   doc.Source,
+			"title":    doc.Title,
+			"url":      doc.URL,
+			"bodyHtml": doc.BodyHTML,
+		}); err != nil {
+			return err
+		}
+	}
+
+	endpoint := b.baseURL + "/collections/docs/documents/import?action=upsert"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body.Bytes()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-TYPESENSE-API-KEY", b.apiKey.Expose())
+	req.Header.Set("Content-Type", "text/plain")
+
+	resp, err := b.httpClient.Do(req)
+	if err != nil {
+		return errors.New("typesense import failed: backend unreachable")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("typesense import rejected with status %d", resp.StatusCode)
+	}
+	return nil
+}

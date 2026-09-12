@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"developer-toolbox/internal/auth"
 	"developer-toolbox/internal/config"
 	"developer-toolbox/internal/docs"
+	"developer-toolbox/internal/extensions"
 	"developer-toolbox/internal/team"
 )
 
@@ -27,8 +29,112 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// ContentSecurityPolicy is the policy sent with every response.
+//
+// script-src stays at 'self' with no 'unsafe-inline' and no remote origin: that is
+// the control that actually prevents script injection, and it is never relaxed.
+// style-src additionally permits 'unsafe-inline' because the Preact UI sets layout
+// through inline style attributes, including values computed at render time (tree
+// indentation depth, canvas dimensions, conditional grid templates). CSP governs
+// style attributes through style-src when style-src-attr is unset, so without this
+// the browser silently drops every one of them and the layout collapses. See
+// docs/adr/0006-content-security-policy-style-src.md for the threat analysis.
+const ContentSecurityPolicy = "default-src 'self'; " +
+	"connect-src 'self'; " +
+	"img-src 'self' data: blob:; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	"script-src 'self'; " +
+	"object-src 'none'; " +
+	"base-uri 'none'; " +
+	"frame-ancestors 'none'"
+
+// ClientRoutes are the SPA paths the browser application handles. The server serves
+// index.html for these so a deep link or a refresh works, and 404s anything else.
+//
+// This list is the server's half of the routing contract in
+// apps/web/src/app/routes.tsx; adding a page there means adding it here.
+var ClientRoutes = []string{
+	"/",
+	"/docs",
+	"/data",
+	"/regex",
+	"/text",
+	"/code-image",
+	"/api-workbench",
+	"/diagrams",
+	"/git",
+	"/algorithms",
+	"/command",
+	"/jwt",
+	"/query",
+	"/types",
+	"/sql",
+	"/cron",
+	"/diff",
+	"/team",
+	"/admin",
+}
+
+// isClientRoute reports whether a path should be served the SPA shell. A route may
+// carry sub-paths (for example /docs/typescript/interfaces), so a prefix match is
+// used, anchored on a segment boundary.
+func isClientRoute(cleanPath string) bool {
+	for _, route := range ClientRoutes {
+		if cleanPath == route {
+			return true
+		}
+		if route != "/" && strings.HasPrefix(cleanPath, route+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// Options carries the optional subsystems a caller can mount onto the server.
+// Everything here is off unless explicitly supplied, so the anonymous localhost
+// profile is the zero value.
+type Options struct {
+	// TeamStore is the writable workspace database. Team routes only become active
+	// when this is non-nil and cfg.TeamMode is true.
+	TeamStore *team.Store
+
+	// Extensions holds the registered Phase 4 extensions. Each one registers its own
+	// routes only when its feature flag is enabled.
+	Extensions *extensions.Registry
+
+	// TeamValidator overrides the OIDC token validator built from the configuration.
+	// Used by tests and by deployments that pin signing keys out of band.
+	TeamValidator *auth.TokenValidator
+}
+
+// Option mutates server Options.
+type Option func(*Options)
+
+// WithTeamStore mounts authenticated team-mode routes backed by the given store.
+func WithTeamStore(store *team.Store) Option {
+	return func(o *Options) { o.TeamStore = store }
+}
+
+// WithExtensions mounts the routes and health endpoints of every enabled extension.
+func WithExtensions(reg *extensions.Registry) Option {
+	return func(o *Options) { o.Extensions = reg }
+}
+
+// WithTeamValidator supplies the OIDC token validator for team routes.
+func WithTeamValidator(v *auth.TokenValidator) Option {
+	return func(o *Options) { o.TeamValidator = v }
+}
+
 // NewServer configures and returns the HTTP handler for the toolbox service.
-func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS) http.Handler {
+//
+// The three-argument form is the core, anonymous, localhost profile. Optional
+// subsystems (team mode, Phase 4 extensions) are mounted by passing Options, which
+// keeps the documented base signature intact for callers that need nothing else.
+func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS, opts ...Option) http.Handler {
+	var options Options
+	for _, apply := range opts {
+		apply(&options)
+	}
 	mux := http.NewServeMux()
 
 	// Liveness probe
@@ -245,15 +351,43 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS) http.Han
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "id": id})
 	})
 
-	// Team mode routes
-	teamHandler := NewTeamHandler(team.Config{Enabled: false}, nil)
+	// Team mode routes. The handler derives its settings from the centrally parsed
+	// config, so TOOLBOX_TEAM_MODE actually reaches the router; when team mode is off
+	// it registers only the "disabled" probe that the UI uses to hide team controls.
+	teamCfg := team.ConfigFromApp(cfg)
+	validator := options.TeamValidator
+	if validator == nil {
+		validator = auth.NewTokenValidator(teamCfg.OIDCIssuer, teamCfg.OIDCAudience)
+	}
+	teamHandler := NewTeamHandlerWithValidator(teamCfg, options.TeamStore, validator)
 	teamHandler.RegisterRoutes(mux)
+
+	// Phase 4 extension routes and per-extension health endpoints. Disabled
+	// extensions register nothing at all.
+	if options.Extensions != nil {
+		if err := options.Extensions.InitializeRoutes(cfg, mux); err != nil {
+			// A registration failure means an enabled extension is misconfigured.
+			// Surface it loudly rather than serving a half-mounted extension.
+			slog.Error("extension route registration failed", "error", err)
+		}
+	}
 
 	// Static assets and SPA routing
 	if assets != nil {
 		fileServer := http.FileServer(http.FS(assets))
 		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 			cleanPath := path.Clean(r.URL.Path)
+
+			// An unmatched API path must never fall through to the SPA. Returning
+			// index.html with 200 makes a missing or disabled endpoint look like a
+			// successful call, which is how a disabled extension appeared healthy.
+			if strings.HasPrefix(cleanPath, "/api/") {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Cache-Control", "no-store")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":"endpoint not found"}`))
+				return
+			}
 
 			// Try to open file directly
 			f, err := assets.Open(strings.TrimPrefix(cleanPath, "/"))
@@ -271,7 +405,14 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS) http.Han
 				}
 			}
 
-			// SPA fallback to index.html
+			// SPA fallback, restricted to the client routes the application actually
+			// serves. An unknown path returns 404 rather than a 200 shell, so a typo
+			// or a stale link is visible instead of rendering an empty app.
+			if !isClientRoute(cleanPath) {
+				http.NotFound(w, r)
+				return
+			}
+
 			indexFile, err := assets.Open("index.html")
 			if err == nil {
 				defer indexFile.Close()
@@ -290,7 +431,7 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS) http.Han
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", ContentSecurityPolicy)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 

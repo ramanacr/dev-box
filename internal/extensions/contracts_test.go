@@ -14,9 +14,9 @@ type dummyExtension struct {
 	healthErr error
 }
 
-func (d *dummyExtension) Name() string                     { return d.name }
-func (d *dummyExtension) Enabled(cfg config.Config) bool   { return d.enabled }
-func (d *dummyExtension) HealthCheck() error               { return d.healthErr }
+func (d *dummyExtension) Name() string                   { return d.name }
+func (d *dummyExtension) Enabled(cfg config.Config) bool { return d.enabled }
+func (d *dummyExtension) HealthCheck() error             { return d.healthErr }
 func (d *dummyExtension) Register(mux *http.ServeMux) error {
 	mux.HandleFunc("GET /api/test/"+d.name, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

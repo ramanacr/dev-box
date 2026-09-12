@@ -1,0 +1,9 @@
+{
+  "image": "developer-toolbox:complete",
+  "startup_seconds": 1.609,
+  "readiness_after_process_start_seconds": 1.609,
+  "readiness_after_docker_run_seconds": 3.558,
+  "startup_budget_seconds": 2.0,
+  "idle_memory": "2.613MiB",
+  "status": "passed"
+}

@@ -53,8 +53,32 @@ func TestHealth(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 		t.Errorf("expected application/json, got %q", ct)
 	}
-	if body := rec.Body.String(); body != `{"status":"ok"}` {
-		t.Errorf("expected {\"status\":\"ok\"}, got %q", body)
+	// Probes and the container smoke test match on the status field, so it has to
+	// keep its exact value even as build identity is added alongside it.
+	var body struct {
+		Status    string `json:"status"`
+		Version   string `json:"version"`
+		GoVersion string `json:"go_version"`
+		Platform  string `json:"platform"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("health body is not JSON: %v (%q)", err, rec.Body.String())
+	}
+	if body.Status != "ok" {
+		t.Errorf(`expected status "ok", got %q`, body.Status)
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
+		t.Errorf("probes grep for the literal status pair; got %q", rec.Body.String())
+	}
+
+	// An unstamped test binary reports the development version rather than
+	// inventing one, which is the property that keeps a local build from being
+	// mistaken for a release in a bug report.
+	if body.Version == "" {
+		t.Error("health must report a version")
+	}
+	if body.GoVersion == "" || body.Platform == "" {
+		t.Errorf("health must report the runtime: go=%q platform=%q", body.GoVersion, body.Platform)
 	}
 }
 

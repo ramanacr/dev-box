@@ -12,11 +12,30 @@ import (
 	"time"
 
 	"developer-toolbox/internal/auth"
+	"developer-toolbox/internal/buildinfo"
 	"developer-toolbox/internal/config"
 	"developer-toolbox/internal/docs"
 	"developer-toolbox/internal/extensions"
 	"developer-toolbox/internal/team"
 )
+
+// healthBody renders the liveness payload once at startup. "status" stays the
+// first key and keeps its exact historical value so existing probes, which grep
+// for {"status":"ok"}, keep matching.
+func healthBody(info buildinfo.Info) []byte {
+	payload := struct {
+		Status string `json:"status"`
+		buildinfo.Info
+	}{Status: "ok", Info: info}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		// The struct is fixed and contains only strings, so this is unreachable;
+		// falling back to the bare status keeps liveness answerable regardless.
+		return []byte(`{"status":"ok"}`)
+	}
+	return encoded
+}
 
 // ResponseWriter wrapper to capture status code for logging.
 type responseWriter struct {
@@ -138,11 +157,16 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS, opts ...
 	}
 	mux := http.NewServeMux()
 
-	// Liveness probe
+	// Liveness probe. It also reports the binary's identity, because this is the
+	// endpoint an operator or a support conversation already reaches for, and
+	// "which version are you running?" should not require shell access to the
+	// container. The payload is built once at startup rather than per request, so
+	// the probe stays as cheap as it was when it returned a constant.
+	healthPayload := healthBody(buildinfo.Get())
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write(healthPayload)
 	})
 
 	// Readiness probe

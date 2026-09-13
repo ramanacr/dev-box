@@ -20,15 +20,33 @@ RUN pnpm --filter @toolbox/web build
 FROM golang:1.27-alpine AS server-builder
 WORKDIR /build
 ENV CGO_ENABLED=0 GOOS=linux
+
+# Build identity, stamped into the binary at link time so a running container can
+# answer "which version is this?" on /healthz without shell access. A plain
+# `docker build` leaves these empty and the binary honestly reports itself as a
+# development build; only the release workflow supplies real values.
+ARG VERSION=""
+ARG COMMIT=""
+ARG BUILD_DATE=""
+
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
-RUN go build -ldflags="-s -w" -o /toolbox-server ./cmd/toolbox-server
+RUN go build       -trimpath       -ldflags="-s -w         -X developer-toolbox/internal/buildinfo.version=${VERSION}         -X developer-toolbox/internal/buildinfo.commit=${COMMIT}         -X developer-toolbox/internal/buildinfo.date=${BUILD_DATE}"       -o /toolbox-server ./cmd/toolbox-server
 
 # Stage 3: Runtime Distroless
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /app
+
+# Re-declared: ARGs do not cross stage boundaries.
+ARG VERSION=""
+ARG COMMIT=""
+ARG BUILD_DATE=""
+
+# Standard OCI annotations. Scanners, registries and `docker inspect` all read
+# these, so the image describes itself without reference to the build that made it.
+LABEL org.opencontainers.image.title="Developer Toolbox"       org.opencontainers.image.description="Offline-capable developer workbench"       org.opencontainers.image.source="https://github.com/ramanacr/dev-box"       org.opencontainers.image.licenses="MIT"       org.opencontainers.image.version="${VERSION}"       org.opencontainers.image.revision="${COMMIT}"       org.opencontainers.image.created="${BUILD_DATE}"
 
 COPY --from=server-builder /toolbox-server /toolbox-server
 COPY --from=web-builder /app/apps/web/dist /app/web

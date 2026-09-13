@@ -1,0 +1,43 @@
+# Line-ending policy.
+#
+# This repository is authored on Windows, where core.autocrlf=true is the common
+# default. Without this file a Windows checkout writes CRLF into the working tree,
+# and `gofmt -l` - which is both a CI gate and the `lint:go` script - then reports
+# every Go file as unformatted, because gofmt normalises to LF. The gate becomes
+# unrunnable on the platform the code is written on, so it stops being consulted.
+#
+# Declaring eol=lf makes the working tree match what the repository stores on every
+# platform, so the same command gives the same answer everywhere.
+* text=auto eol=lf
+
+# Shell scripts must be LF regardless of platform: a CRLF shebang makes Linux
+# report "bad interpreter: /usr/bin/env bash^M" and the script cannot run at all.
+# Their executable bit is tracked in the index (mode 100755), which Windows does
+# not model - use `git update-index --chmod=+x` when adding a new one.
+*.sh text eol=lf
+
+# Batch files are the inverse: cmd.exe requires CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary content: never subject to line-ending or diff conversion. Content packs in
+# particular are checksummed in their manifest, so a single converted byte would
+# fail pack validation.
+*.db binary
+*.db-wal binary
+*.db-journal binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.pdf binary
+*.zip binary
+*.vsix binary
+
+# Generated files: keep them out of diffs and reviews.
+pnpm-lock.yaml -diff linguist-generated

@@ -17,7 +17,7 @@ COPY apps/web ./apps/web
 RUN pnpm --filter @toolbox/web build
 
 # Stage 2: Build Go Server
-FROM golang:1.24-alpine AS server-builder
+FROM golang:1.27-alpine AS server-builder
 WORKDIR /build
 ENV CGO_ENABLED=0 GOOS=linux
 COPY go.mod go.sum* ./

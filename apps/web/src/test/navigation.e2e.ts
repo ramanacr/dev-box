@@ -68,11 +68,19 @@ test.describe('Sidebar navigation', () => {
 
     await expect(sidebar).not.toHaveClass(/collapsed/);
     const expandedWidth = (await sidebar.boundingBox())?.width ?? 0;
+    expect(expandedWidth).toBeGreaterThan(150);
 
     await toggle.click();
     await expect(sidebar).toHaveClass(/collapsed/);
-    const collapsedWidth = (await sidebar.boundingBox())?.width ?? 0;
-    expect(collapsedWidth).toBeLessThan(expandedWidth);
+
+    // The rail animates its width, so the box has to be polled rather than sampled:
+    // reading it the instant the class flips catches a frame mid-transition and the
+    // comparison fails for a reason that has nothing to do with the behaviour.
+    await expect
+      .poll(async () => (await sidebar.boundingBox())?.width ?? expandedWidth, {
+        timeout: 2000,
+      })
+      .toBeLessThan(expandedWidth);
 
     // Labels go, icons stay: the rail is still navigable when collapsed.
     await expect(page.locator('.nav-label').first()).toBeHidden();
@@ -80,10 +88,9 @@ test.describe('Sidebar navigation', () => {
 
     await page.reload();
     await expect(page.locator('.app-sidebar')).toHaveClass(/collapsed/);
-
-    // Restore, so the preference does not leak into another test's expectations.
-    await page.getByRole('button', { name: /navigation/i }).click();
-    await expect(page.locator('.app-sidebar')).not.toHaveClass(/collapsed/);
+    // No need to restore the preference: each test gets its own browser context, so
+    // the stored value does not reach another test, and clicking again here only
+    // adds a second thing to race.
   });
 
   test('reveals the skip link on the first Tab and jumps to the content', async ({ page }) => {
@@ -104,14 +111,20 @@ test.describe('Sidebar navigation', () => {
   });
 
   test('collapses to icons on a narrow viewport regardless of preference', async ({ page }) => {
-    await page.goto('/');
+    // Sized before navigating, so the media query applies at first paint and the
+    // rail never animates down from its wide width.
     await page.setViewportSize({ width: 500, height: 800 });
+    await page.goto('/');
 
     // The media query wins over the stored preference: 236px of a phone screen is
     // most of the page.
     await expect(page.locator('.nav-label').first()).toBeHidden();
     await expect(page.locator('svg.nav-icon').first()).toBeVisible();
-    expect((await page.locator('.app-sidebar').boundingBox())?.width ?? 0).toBeLessThan(80);
+    await expect
+      .poll(async () => (await page.locator('.app-sidebar').boundingBox())?.width ?? 999, {
+        timeout: 2000,
+      })
+      .toBeLessThan(80);
   });
 
   test('navigates when an entry is chosen', async ({ page }) => {

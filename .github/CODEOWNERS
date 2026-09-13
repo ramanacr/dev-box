@@ -1,0 +1,24 @@
+# Every pull request needs a review from an owner listed here. Ownership is by
+# blast radius, not by file count: the security boundary, the release pipeline and
+# the container definition each get named owners because a mistake there ships to
+# every operator.
+
+*                           @ramanacr
+
+# Security boundary. Identity, token validation and role mapping decide what every
+# other route is allowed to do.
+/internal/auth/             @ramanacr
+/internal/team/             @ramanacr
+/internal/httpapi/          @ramanacr
+/SECURITY.md                @ramanacr
+
+# Release and supply chain. These files determine what is built, what is scanned
+# and what is published under the project's name.
+/.github/workflows/         @ramanacr
+/Dockerfile                 @ramanacr
+/compose.yaml               @ramanacr
+/deploy/                    @ramanacr
+
+# Architecture decisions are reviewed as decisions, not as prose.
+/docs/adr/                  @ramanacr
+/docs/security/             @ramanacr

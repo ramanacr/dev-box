@@ -1,0 +1,50 @@
+version: 2
+
+updates:
+  # GitHub Actions are pinned to commit SHAs so a compromised upstream tag cannot
+  # silently change what runs in CI. Dependabot understands that pinning and will
+  # raise the SHA while keeping the trailing version comment accurate, which is the
+  # only maintainable way to stay both pinned and current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    groups:
+      go-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    commit-message:
+      prefix: "deps"
+    groups:
+      # The web app's dev tooling churns far faster than its runtime dependencies.
+      # Grouping keeps that churn to one reviewable pull request a week.
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+      runtime-minor-and-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps"

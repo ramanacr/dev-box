@@ -34,10 +34,10 @@ export function ResponseView({ execution, validation, onDownloadBinary }: Respon
 
   const isSuccess = execution.status >= 200 && execution.status < 300;
   const statusColor = isSuccess
-    ? 'var(--color-success, #10b981)'
+    ? 'var(--color-success)'
     : execution.status >= 400
-    ? 'var(--color-error, #ef4444)'
-    : 'var(--color-warning, #f59e0b)';
+    ? 'var(--color-error)'
+    : 'var(--color-warning)';
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -55,7 +55,7 @@ export function ResponseView({ execution, validation, onDownloadBinary }: Respon
               className="badge"
               style={{
                 backgroundColor: validation.valid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                color: validation.valid ? 'var(--color-success, #10b981)' : 'var(--color-error, #ef4444)',
+                color: validation.valid ? 'var(--color-success)' : 'var(--color-error)',
               }}
             >
               Contract: {validation.valid ? 'Passing' : `${validation.issues.length} issue(s)`}
@@ -144,12 +144,12 @@ export function ResponseView({ execution, validation, onDownloadBinary }: Respon
           {!validation ? (
             <p style={{ color: 'var(--text-muted)' }}>No schema available for this response status code.</p>
           ) : validation.valid ? (
-            <div style={{ color: 'var(--color-success, #10b981)', padding: '12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '4px' }}>
+            <div style={{ color: 'var(--color-success)', padding: '12px', background: 'color-mix(in srgb, var(--color-success) 12%, transparent)', borderRadius: '4px' }}>
               ✓ Response strictly conforms to the OpenAPI specification contract.
             </div>
           ) : (
             <div>
-              <p style={{ color: 'var(--color-error, #ef4444)', fontWeight: 'bold', marginBottom: '8px' }}>
+              <p style={{ color: 'var(--color-error)', fontWeight: 'bold', marginBottom: '8px' }}>
                 Found {validation.issues.length} contract schema issue(s):
               </p>
               <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem' }}>

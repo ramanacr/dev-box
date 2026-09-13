@@ -127,7 +127,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <h2 style={{ fontSize: '1.15rem' }}>{tool.title}</h2>
-                <span className="badge" style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'var(--accent-bg)', color: 'var(--accent-primary)', border: '1px solid var(--accent-primary)', borderRadius: '4px' }}>
+                <span className="badge" style={{ fontSize: '0.7rem' }}>
                   {tool.badge}
                 </span>
               </div>

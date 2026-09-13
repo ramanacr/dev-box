@@ -14,6 +14,12 @@ release.
 
 ### Added
 
+- Per-caller HTTP rate limiting on every route except `/healthz` and `/readyz`,
+  which are never limited so an orchestrator cannot probe itself out of the
+  cluster. Write and gateway routes (upload, AI, pack activation) are held to a
+  tighter limit than reads. Refusals return 429 with `Retry-After` and the
+  `RateLimit-*` headers. Configured with `TOOLBOX_RATE_LIMIT_ENABLED`,
+  `TOOLBOX_RATE_LIMIT_RPS` and `TOOLBOX_RATE_LIMIT_BURST`.
 - A `/metrics` endpoint in Prometheus text exposition format, covering request
   counts, duration and response-size histograms, in-flight gauge and build info.
   Enabled by default; `TOOLBOX_METRICS_ENABLED=false` turns it off. Route labels

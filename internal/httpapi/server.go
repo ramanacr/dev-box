@@ -17,6 +17,7 @@ import (
 	"developer-toolbox/internal/docs"
 	"developer-toolbox/internal/extensions"
 	"developer-toolbox/internal/observability"
+	"developer-toolbox/internal/ratelimit"
 	"developer-toolbox/internal/team"
 )
 
@@ -553,8 +554,64 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS, opts ...
 		slog.Info("http_request", attrs...)
 	})
 
+	// Rate limiting sits between instrumentation and logging: a refused request is
+	// still counted and still logged with its request id, because "we are shedding
+	// load" is exactly what an operator needs to see, and a limiter that hides its
+	// own refusals is undiagnosable.
+	var limited http.Handler = logged
+	if cfg.RateLimitEnabled {
+		limited = ratelimit.MiddlewareFunc(limiterFor(cfg), ratelimit.PrincipalKey, logged)
+	}
+
 	// Instrumentation is the outermost layer so it observes everything the logging
 	// middleware does, including responses that never reach the mux, and so the
 	// request id it assigns is already on the context by the time anything logs.
-	return observability.Instrument(registry, logged)
+	return observability.Instrument(registry, limited)
+}
+
+// expensiveRoutes are the paths held to the tighter limit. Each one either writes
+// to a database, spends money at a third party, or does real per-call work, so a
+// caller looping on it costs far more than one looping on a search.
+var expensiveRoutes = []string{
+	"/api/docs/upload",
+	"/api/docs/custom",
+	"/api/ai/",
+	"/api/team/admin/packs",
+	"/api/extensions/typesense/mirror",
+}
+
+// limiterFor builds the per-request limiter selector.
+//
+// The limiters are created once and captured, not built per request: a limiter
+// constructed per call would hold no state and enforce nothing, which is the kind
+// of bug that passes every test that only checks a single request.
+func limiterFor(cfg config.Config) func(*http.Request) *ratelimit.Limiter {
+	standard := ratelimit.New(ratelimit.Limit{
+		RPS:   cfg.RateLimitRPS,
+		Burst: cfg.RateLimitBurst,
+	})
+
+	// Expensive routes get a twentieth of the sustained rate and a tenth of the
+	// burst, derived from the operator's setting rather than fixed, so tuning one
+	// number keeps the relationship intact.
+	expensive := ratelimit.New(ratelimit.Limit{
+		RPS:   cfg.RateLimitRPS / 20,
+		Burst: cfg.RateLimitBurst / 10,
+	})
+
+	return func(r *http.Request) *ratelimit.Limiter {
+		// Health and readiness are never limited. An orchestrator probing every few
+		// seconds must not be able to throttle itself out of the cluster, and a
+		// probe that fails under load would turn a busy service into a restarting
+		// one.
+		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
+			return nil
+		}
+		for _, prefix := range expensiveRoutes {
+			if strings.HasPrefix(r.URL.Path, prefix) {
+				return expensive
+			}
+		}
+		return standard
+	}
 }

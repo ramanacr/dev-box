@@ -581,3 +581,128 @@ func TestMetricsDoNotLeakSearchQueries(t *testing.T) {
 		t.Errorf("search query leaked into metrics:\n%s", rec.Body.String())
 	}
 }
+
+// TestRateLimitRefusesFlood covers the wiring: the limiter is actually mounted,
+// and it is stateful across requests.
+func TestRateLimitRefusesFlood(t *testing.T) {
+	cfg := config.Config{
+		RateLimitEnabled: true,
+		RateLimitRPS:     20,
+		RateLimitBurst:   5,
+	}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	refused := 0
+	for i := 0; i < 20; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/docs/search?q=x", nil)
+		req.RemoteAddr = "10.1.2.3:5000"
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			refused++
+		}
+	}
+
+	if refused == 0 {
+		t.Fatal("a 20-request flood against a burst of 5 was never refused")
+	}
+}
+
+// TestHealthAndReadyAreNeverRateLimited: an orchestrator probing every few seconds
+// must not be able to throttle itself out of the cluster.
+func TestHealthAndReadyAreNeverRateLimited(t *testing.T) {
+	cfg := config.Config{
+		RateLimitEnabled: true,
+		RateLimitRPS:     1,
+		RateLimitBurst:   1,
+	}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	for _, path := range []string{"/healthz", "/readyz"} {
+		for i := 0; i < 50; i++ {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.RemoteAddr = "10.1.2.3:5000"
+			rec := httptest.NewRecorder()
+			srv.ServeHTTP(rec, req)
+			if rec.Code == http.StatusTooManyRequests {
+				t.Fatalf("%s was rate limited on request %d", path, i+1)
+			}
+		}
+	}
+}
+
+// TestUploadIsHeldToATighterLimitThanSearch pins the route classing. Upload
+// writes to SQLite; search does not.
+func TestUploadIsHeldToATighterLimitThanSearch(t *testing.T) {
+	cfg := config.Config{
+		RateLimitEnabled: true,
+		RateLimitRPS:     100,
+		RateLimitBurst:   100,
+	}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	countRefusals := func(path string) int {
+		refused := 0
+		for i := 0; i < 30; i++ {
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.RemoteAddr = "10.9.9.9:6000"
+			rec := httptest.NewRecorder()
+			srv.ServeHTTP(rec, req)
+			if rec.Code == http.StatusTooManyRequests {
+				refused++
+			}
+		}
+		return refused
+	}
+
+	uploadRefusals := countRefusals("/api/docs/upload")
+	searchRefusals := countRefusals("/api/docs/search")
+
+	if uploadRefusals == 0 {
+		t.Error("upload should hit the expensive limit within 30 requests")
+	}
+	if searchRefusals != 0 {
+		t.Errorf("search should stay under the standard limit, got %d refusals", searchRefusals)
+	}
+}
+
+// TestRateLimitCanBeDisabled covers the escape hatch for an operator who fronts
+// the service with their own limiter.
+func TestRateLimitCanBeDisabled(t *testing.T) {
+	cfg := config.Config{RateLimitEnabled: false}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	for i := 0; i < 100; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/docs/search?q=x", nil)
+		req.RemoteAddr = "10.1.2.3:5000"
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("rate limiting is disabled but request %d was refused", i+1)
+		}
+	}
+}
+
+// TestRefusedRequestsAreStillCounted: a limiter that hides its own refusals is
+// undiagnosable, so 429s must reach the metrics.
+func TestRefusedRequestsAreStillCounted(t *testing.T) {
+	cfg := config.Config{
+		MetricsEnabled:   true,
+		RateLimitEnabled: true,
+		RateLimitRPS:     1,
+		RateLimitBurst:   1,
+	}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/docs/search?q=x", nil)
+		req.RemoteAddr = "10.4.4.4:7000"
+		srv.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(rec.Body.String(), `status="429"`) {
+		t.Errorf("refusals must appear in metrics:\n%s", rec.Body.String())
+	}
+}

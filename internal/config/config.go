@@ -54,6 +54,15 @@ type Config struct {
 	// LogLevel is the minimum slog level emitted. Operators need to raise this to
 	// debug an incident and lower it afterwards without a rebuild.
 	LogLevel slog.Level
+
+	// RateLimitEnabled throttles HTTP requests per caller. On by default, with
+	// limits set well above anything a human driving the UI will reach.
+	RateLimitEnabled bool
+
+	// RateLimitRPS and RateLimitBurst shape the bucket for ordinary reads. Write
+	// and gateway routes derive a tighter limit from these.
+	RateLimitRPS   float64
+	RateLimitBurst float64
 }
 
 // Default settings as specified in the architecture document.
@@ -67,6 +76,12 @@ const (
 
 	// DefaultAITokenBudget caps a single prompt when no explicit budget is set.
 	DefaultAITokenBudget = 4096
+
+	// Rate limit defaults. Set so no human driving the web UI will ever meet them
+	// while an unattended loop is stopped well short of exhausting the disk: a
+	// local-first tool that rate-limits its own user has failed.
+	DefaultRateLimitRPS   = 50.0
+	DefaultRateLimitBurst = 100.0
 )
 
 // KnownFeatures lists every extension flag the service recognises. Flags are
@@ -134,6 +149,28 @@ func Load(getenv func(string) string) (Config, error) {
 		WebRoot:        DefaultWebRoot,
 		MetricsEnabled: true,
 		LogLevel:       slog.LevelInfo,
+
+		RateLimitEnabled: true,
+		RateLimitRPS:     DefaultRateLimitRPS,
+		RateLimitBurst:   DefaultRateLimitBurst,
+	}
+
+	if val := strings.TrimSpace(getenv("TOOLBOX_RATE_LIMIT_ENABLED")); val != "" {
+		cfg.RateLimitEnabled = parseBool(val)
+	}
+	if val := strings.TrimSpace(getenv("TOOLBOX_RATE_LIMIT_RPS")); val != "" {
+		rps, err := strconv.ParseFloat(val, 64)
+		if err != nil || rps <= 0 {
+			return Config{}, fmt.Errorf("invalid TOOLBOX_RATE_LIMIT_RPS %q: must be a positive number", val)
+		}
+		cfg.RateLimitRPS = rps
+	}
+	if val := strings.TrimSpace(getenv("TOOLBOX_RATE_LIMIT_BURST")); val != "" {
+		burst, err := strconv.ParseFloat(val, 64)
+		if err != nil || burst < 1 {
+			return Config{}, fmt.Errorf("invalid TOOLBOX_RATE_LIMIT_BURST %q: must be at least 1", val)
+		}
+		cfg.RateLimitBurst = burst
 	}
 
 	// Opt-out rather than opt-in: an unobservable service is the worse default,

@@ -148,6 +148,65 @@ jobs:
       - name: Test ${{ matrix.profile }} in isolation
         run: go test ./internal/features ./internal/config -v
 
+  dependency-scan:
+    name: Dependency Vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27'
+
+      # Trivy scans the image, which catches OS packages. Nothing scanned the
+      # project's own dependencies, so a vulnerability in a Go module or an npm
+      # package was invisible to CI. These steps close that.
+
+      # govulncheck is pinned by version rather than installed at @latest: a
+      # scanner that silently changes between runs turns a green build into an
+      # unreproducible one. It reports only vulnerabilities actually reachable
+      # from this code, so a finding here is a real call path rather than an
+      # advisory against a package that merely appears in the graph.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      - name: Scan Go dependencies
+        run: govulncheck ./...
+
+      - run: corepack enable && corepack install
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      # Runtime dependencies are what reaches a user, so a high or critical
+      # finding here fails the build.
+      - name: Audit runtime dependencies
+        run: pnpm audit --prod --audit-level high
+
+      # The full tree including dev tooling is reported but does not block.
+      # Blocking on it would wedge the pipeline on advisories against a test
+      # runner that no user ever executes, and a permanently red gate is one
+      # people learn to ignore. The report is kept as an artifact so the backlog
+      # stays visible rather than invisible.
+      #
+      # Known outstanding: GHSA-82fw-gwwq-j7x9 (moderate) against vitest and
+      # @vitest/mocker, fixed in vitest 4.1.11. Taking it means a major upgrade
+      # across three workspace packages, tracked separately.
+      - name: Audit all dependencies (report only)
+        continue-on-error: true
+        run: |
+          mkdir -p artifacts
+          pnpm audit --audit-level moderate --json > artifacts/npm-audit.json || true
+          pnpm audit --audit-level moderate || true
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: npm-audit
+          path: artifacts/npm-audit.json
+          if-no-files-found: ignore
+
   docker-build-and-scan:
     name: Docker Build & Security Scans
     runs-on: ubuntu-latest

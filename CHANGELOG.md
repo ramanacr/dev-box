@@ -52,6 +52,26 @@ release.
 - `CONTRIBUTING.md`, `CODEOWNERS`, a pull request template, and Dependabot
   configuration for Go modules, npm, Docker and GitHub Actions.
 
+### Security
+
+- `govulncheck` now scans the Go module tree in CI and fails the build on any
+  vulnerability reachable from this code. Trivy scans the image, which covers OS
+  packages; the project's own dependencies were previously unscanned.
+- `golang.org/x/sys` upgraded from v0.30.0 to v0.44.0, clearing GO-2026-5024
+  (integer overflow in `NewNTUnicodeString`). It was never reachable from this
+  code and is Windows-only while the image is Linux, but the fix was a version
+  bump, so the finding is closed rather than argued with.
+- `pnpm audit` now runs in CI. Runtime dependencies fail the build at high or
+  critical severity; the full tree including dev tooling is reported as an
+  artifact without blocking, so advisories against a test runner cannot wedge
+  the pipeline.
+
+### Known issues
+
+- GHSA-82fw-gwwq-j7x9 (moderate) affects `vitest` and `@vitest/mocker` in the
+  dev dependency tree. The fix is vitest 4.1.11, a major upgrade across three
+  workspace packages. No published artifact contains vitest.
+
 ### Changed
 
 - Every GitHub Actions reference is pinned to a full commit SHA.

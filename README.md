@@ -196,17 +196,143 @@ unset until those tables are filled in with real measurements.
 
 ## Companion packages
 
-Not part of the container.
+Neither ships inside the container.
 
 - **`packages/mcp-server`** — a Model Context Protocol server exposing `search_docs`
-  and `transform_data` over stdio, so an assistant on your machine can search your
-  offline docs. It only ever addresses a loopback toolbox URL, and exposes neither
-  API execution nor environment secrets.
+  and `transform_data` over stdio. See [MCP and Docker](#mcp-and-docker) below.
 - **`packages/vscode`** — a VS Code extension whose single command opens your
   selection in the local toolbox's doc search via `vscode.env.openExternal`. No
   webview, no telemetry. A non-loopback `developerToolbox.url` is refused.
 
 See [docs/operations/mcp-and-vscode.md](docs/operations/mcp-and-vscode.md).
+
+## MCP and Docker
+
+**The MCP server does not run inside the container, and cannot.** The runtime image is
+`gcr.io/distroless/static` and holds four things — the Go binary, the built web assets,
+the content pack and its manifest. There is no Node runtime in it, no shell, and no
+package manager, which is most of why the image is 18.5 MB. A Node process cannot be
+started there.
+
+It is a **host-side bridge**, and it works against the container:
+
+```text
+  MCP client (Claude Desktop, an IDE, any MCP-capable assistant)
+        │  stdio, JSON-RPC
+        ▼
+  node packages/mcp-server/dist/index.js        ← runs on your machine
+        │  HTTP to a loopback address only
+        ▼
+  developer-toolbox container, published on 127.0.0.1:8080
+```
+
+The container publishes `127.0.0.1:8080`, the bridge addresses that port, and nothing
+in the path leaves the machine.
+
+### Setup
+
+`dist/` is a build product and is not tracked, so build it once:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --filter @toolbox/mcp-server build
+```
+
+Start the toolbox if it is not already running:
+
+```bash
+docker compose up -d toolbox
+```
+
+Then register the bridge with your MCP client. Most clients take a JSON block of this
+shape — for Claude Desktop it is `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "developer-toolbox": {
+      "command": "node",
+      "args": ["/absolute/path/to/dev-box/packages/mcp-server/dist/index.js"],
+      "env": { "TOOLBOX_URL": "http://127.0.0.1:8080" }
+    }
+  }
+}
+```
+
+Use an absolute path: the client sets the working directory, not you. On Windows, write
+the path with forward slashes or escaped backslashes so it survives JSON parsing.
+
+### Configuration
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TOOLBOX_URL` | `http://127.0.0.1:8080` | Where the toolbox is published. Change the port here if you mapped a different one. |
+| `TOOLBOX_LOCAL_TOKEN` | unset | Sent as a bearer token when team mode is enabled. Not needed for the default anonymous localhost profile. |
+
+### The two tools
+
+**`search_docs`** — full-text search across the offline packs, returning ranked results
+with the document id you can use to retrieve the whole page.
+
+| Argument | Type | Notes |
+| --- | --- | --- |
+| `query` | string, 1–200 chars | required |
+| `source` | string, ≤64 chars | optional; restricts to one source, e.g. `aspnetcore`, `git` |
+| `limit` | integer 1–50 | optional, default 20 |
+
+**`transform_data`** — converts between JSON and YAML in-process.
+
+| Argument | Type | Notes |
+| --- | --- | --- |
+| `input` | string | required |
+| `from` | `json` \| `yaml` | required |
+| `to` | `json` \| `yaml` | required |
+
+### What it will not do
+
+The boundaries are deliberate, and they are enforced rather than documented:
+
+- **Loopback addresses only.** `localhost`, `::1` and the whole of `127.0.0.0/8` are
+  accepted; anything else is refused when the process starts, before a client can call
+  a tool, and checked again on every call. Pointing it at a remote host fails
+  immediately:
+
+  ```text
+  $ TOOLBOX_URL=http://example.com:8080 node packages/mcp-server/dist/index.js
+  fatal: Refusing to connect to "example.com": the MCP bridge only addresses the local toolbox.
+  ```
+
+- **No API execution and no environment secrets.** The request workbench stays in the
+  browser, where its host policy and consent prompts live. An MCP client cannot use
+  this bridge to make the toolbox issue an arbitrary outbound request, which would turn
+  it into an SSRF surface.
+- **No user data in errors.** A tool failure reports what went wrong without echoing
+  back the document or query that caused it.
+- **YAML aliases and custom tags are refused** during conversion, so a converter cannot
+  be used to expand input into something far larger than it appears.
+
+### Checking it works
+
+The handshake is worth driving once, because a misconfigured path fails silently in
+most clients. With the container running:
+
+```bash
+pnpm --filter @toolbox/mcp-server test
+```
+
+A live check against the container should report the server, both tools, and real
+results from the pack:
+
+```text
+initialize     : {"name":"developer-toolbox","version":"1.0.0"} proto 2024-11-05
+tools/list     : search_docs, transform_data
+search_docs    : 1. HTTP methods, safety and idempotence [http]  …id: http/methods-and-idempotence
+transform_data : a: |   b: |     - 1 |     - 2
+```
+
+If `tools/list` comes back empty, the client is usually running a stale `dist/` — rebuild
+and restart the client. If `search_docs` returns nothing, check the container is up and
+that `TOOLBOX_URL` matches the port you published.
 
 ## Security and architecture
 

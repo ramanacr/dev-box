@@ -33,7 +33,13 @@ COPY go.mod go.sum* ./
 RUN go mod download
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
-RUN go build       -trimpath       -ldflags="-s -w         -X developer-toolbox/internal/buildinfo.version=${VERSION}         -X developer-toolbox/internal/buildinfo.commit=${COMMIT}         -X developer-toolbox/internal/buildinfo.date=${BUILD_DATE}"       -o /toolbox-server ./cmd/toolbox-server
+RUN go build \
+      -trimpath \
+      -ldflags="-s -w \
+        -X developer-toolbox/internal/buildinfo.version=${VERSION} \
+        -X developer-toolbox/internal/buildinfo.commit=${COMMIT} \
+        -X developer-toolbox/internal/buildinfo.date=${BUILD_DATE}" \
+      -o /toolbox-server ./cmd/toolbox-server
 
 # Stage 3: Runtime Distroless
 FROM gcr.io/distroless/static:nonroot
@@ -46,7 +52,13 @@ ARG BUILD_DATE=""
 
 # Standard OCI annotations. Scanners, registries and `docker inspect` all read
 # these, so the image describes itself without reference to the build that made it.
-LABEL org.opencontainers.image.title="Developer Toolbox"       org.opencontainers.image.description="Offline-capable developer workbench"       org.opencontainers.image.source="https://github.com/ramanacr/dev-box"       org.opencontainers.image.licenses="MIT"       org.opencontainers.image.version="${VERSION}"       org.opencontainers.image.revision="${COMMIT}"       org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.title="Developer Toolbox" \
+      org.opencontainers.image.description="Offline-capable developer workbench" \
+      org.opencontainers.image.source="https://github.com/ramanacr/dev-box" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      org.opencontainers.image.created="${BUILD_DATE}"
 
 COPY --from=server-builder /toolbox-server /toolbox-server
 COPY --from=web-builder /app/apps/web/dist /app/web
@@ -71,5 +83,16 @@ ENV TOOLBOX_BIND_ADDRESS=0.0.0.0 \
 
 USER nonroot:nonroot
 EXPOSE 8080
+
+# The image is distroless, so there is no shell, curl or wget to write a probe
+# against. Rather than give up the distroless base to gain one, the binary probes
+# itself: `toolbox-server healthcheck` requests /readyz over loopback and exits
+# non-zero if the service cannot serve. The image still ships exactly one
+# executable.
+#
+# start-period covers pack validation and database open on a cold start; the
+# measured figure is well under a second, so 10s is slack rather than a guess.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["/toolbox-server", "healthcheck"]
 
 ENTRYPOINT ["/toolbox-server"]

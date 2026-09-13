@@ -1,3 +1,26 @@
+# The default profile is a single anonymous container published to loopback only.
+# `docker compose --profile team up` additionally starts the team-mode service.
+#
+# Both services carry the same hardening: no new privileges, every capability
+# dropped, and a read-only root filesystem. The server writes only to the volumes
+# mounted below, so nothing else needs to be writable.
+
+# Shared hardening. The runtime image is distroless and already runs as uid 65532,
+# so this closes what the image cannot: privilege escalation through setuid
+# binaries, capabilities the process never uses, and writes outside the volumes.
+x-hardening: &hardening
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+# The Go runtime writes temporary files, and a read-only root leaves it nowhere to
+# put them. A small in-memory tmpfs is enough and never touches the disk.
+x-tmpfs: &tmpfs
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+
 services:
   toolbox:
     build:
@@ -5,15 +28,57 @@ services:
       dockerfile: Dockerfile
     image: developer-toolbox:dev
     container_name: developer-toolbox
+    <<: [*hardening, *tmpfs]
     ports:
       - "127.0.0.1:8080:8080"
     environment:
       - TOOLBOX_BIND_ADDRESS=0.0.0.0
       - TOOLBOX_PORT=8080
       - TOOLBOX_USER_DOCS_DB_PATH=/app/packs/user/user-docs.db
+
+      # Operational controls. These are the defaults written out rather than
+      # changed, so the knobs are visible to whoever edits this file next.
+      #
+      # TOOLBOX_LOG_LEVEL: debug, info, warn or error. Raise it to debug an
+      #   incident; an unrecognised value fails startup rather than being ignored.
+      # TOOLBOX_METRICS_ENABLED: serves /metrics in Prometheus text format. It
+      #   carries no request content, and the port above is loopback-only, so it
+      #   stays on. Set false if you publish the port on a shared network.
+      # TOOLBOX_RATE_LIMIT_*: per-caller throttling. The defaults sit far above
+      #   anything a person driving the UI reaches; writes and gateway routes
+      #   derive a tighter limit from them automatically.
+      - TOOLBOX_LOG_LEVEL=info
+      - TOOLBOX_METRICS_ENABLED=true
+      - TOOLBOX_RATE_LIMIT_ENABLED=true
+      - TOOLBOX_RATE_LIMIT_RPS=50
+      - TOOLBOX_RATE_LIMIT_BURST=100
     volumes:
       - user-docs-data:/app/packs/user
     restart: unless-stopped
+
+    # The image declares its own HEALTHCHECK; this only shortens the interval so a
+    # local `docker compose ps` reflects reality quickly.
+    healthcheck:
+      test: ["CMD", "/toolbox-server", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+    # The service idles at a few MiB. These ceilings exist so a runaway cannot take
+    # the host down with it, not because the limits are expected to bind.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   toolbox-team:
     build:
@@ -23,6 +88,7 @@ services:
     container_name: developer-toolbox-team
     profiles:
       - team
+    <<: [*hardening, *tmpfs]
     ports:
       - "127.0.0.1:8081:8080"
     environment:
@@ -32,10 +98,43 @@ services:
       - TOOLBOX_OIDC_ISSUER=https://auth.example.com
       - TOOLBOX_OIDC_AUDIENCE=developer-toolbox
       - TOOLBOX_TEAM_DB_PATH=/var/lib/toolbox/workspace.db
+
+      - TOOLBOX_LOG_LEVEL=info
+      - TOOLBOX_METRICS_ENABLED=true
+      - TOOLBOX_RATE_LIMIT_ENABLED=true
+      - TOOLBOX_RATE_LIMIT_RPS=50
+      - TOOLBOX_RATE_LIMIT_BURST=100
+
+      # Audit retention. Zero, the default, keeps every record forever, because
+      # the service cannot know your obligation: a compliance regime setting a
+      # minimum is as likely as a privacy regime setting a maximum, and deleting
+      # evidence nobody asked to have deleted is the worse failure. Set a number
+      # of days to prune, swept at startup and then daily.
+      - TOOLBOX_AUDIT_RETENTION_DAYS=0
     volumes:
       - team-workspace-data:/var/lib/toolbox
       - user-docs-data:/app/packs/user
     restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "/toolbox-server", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   user-docs-data:

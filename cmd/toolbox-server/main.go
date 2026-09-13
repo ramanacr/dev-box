@@ -70,6 +70,13 @@ func startAuditRetention(store *team.Store, days int) func() {
 }
 
 func main() {
+	// The healthcheck subcommand short-circuits before any logging or state is
+	// set up: it is a probe, not a server start, and it must not create a
+	// workspace database or emit a startup line on every interval.
+	if len(os.Args) > 1 && os.Args[1] == healthcheckSubcommand {
+		os.Exit(runHealthcheck(os.Getenv))
+	}
+
 	// Bootstrap logger. The configured level is not known until config loads, and
 	// a failure to load has to be reportable, so this starts at info and is
 	// replaced below.

@@ -20,6 +20,13 @@ release.
   require the installation-wide admin capability.
 - `TOOLBOX_AUDIT_RETENTION_DAYS` prunes audit records older than the given
   window, swept at startup and daily. Zero, the default, keeps everything.
+- A container `HEALTHCHECK`, implemented as a `healthcheck` subcommand on the
+  binary itself so the distroless base does not have to gain a shell or curl to
+  get one. It probes `/readyz` over loopback.
+- `compose.yaml` now runs with a read-only root filesystem, all capabilities
+  dropped, `no-new-privileges`, a 16 MB tmpfs for `/tmp`, memory limits and log
+  rotation, and spells out the operational environment variables at their
+  defaults.
 - Per-caller HTTP rate limiting on every route except `/healthz` and `/readyz`,
   which are never limited so an orchestrator cannot probe itself out of the
   cluster. Write and gateway routes (upload, AI, pack activation) are held to a

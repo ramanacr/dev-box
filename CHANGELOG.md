@@ -68,16 +68,15 @@ release.
   (integer overflow in `NewNTUnicodeString`). It was never reachable from this
   code and is Windows-only while the image is Linux, but the fix was a version
   bump, so the finding is closed rather than argued with.
-- `pnpm audit` now runs in CI. Runtime dependencies fail the build at high or
-  critical severity; the full tree including dev tooling is reported as an
-  artifact without blocking, so advisories against a test runner cannot wedge
-  the pipeline.
-
-### Known issues
-
-- GHSA-82fw-gwwq-j7x9 (moderate) affects `vitest` and `@vitest/mocker` in the
-  dev dependency tree. The fix is vitest 4.1.11, a major upgrade across three
-  workspace packages. No published artifact contains vitest.
+- `pnpm audit` now runs in CI. Runtime dependencies and the full tree including
+  dev tooling both fail the build at high or critical severity; moderate findings
+  are reported as an artifact without blocking, since their fix is often a major
+  upgrade that cannot land the same day.
+- vitest upgraded from 3.x to 4.1.11 across `apps/web`, `packages/mcp-server` and
+  `packages/vscode`, clearing GHSA-82fw-gwwq-j7x9 (moderate: path traversal via
+  the `@vitest/mocker` redirect mock). No configuration or test changes were
+  needed, and `vite ^6.2.0` already satisfied vitest 4's peer range. The audit
+  tree is now clean at every severity.
 
 ### Changed
 

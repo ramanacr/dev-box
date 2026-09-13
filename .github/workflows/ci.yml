@@ -184,16 +184,18 @@ jobs:
       - name: Audit runtime dependencies
         run: pnpm audit --prod --audit-level high
 
-      # The full tree including dev tooling is reported but does not block.
-      # Blocking on it would wedge the pipeline on advisories against a test
-      # runner that no user ever executes, and a permanently red gate is one
-      # people learn to ignore. The report is kept as an artifact so the backlog
-      # stays visible rather than invisible.
-      #
-      # Known outstanding: GHSA-82fw-gwwq-j7x9 (moderate) against vitest and
-      # @vitest/mocker, fixed in vitest 4.1.11. Taking it means a major upgrade
-      # across three workspace packages, tracked separately.
-      - name: Audit all dependencies (report only)
+      # Dev tooling runs on developer machines and inside CI with access to the
+      # repository, so a high or critical finding there is worth stopping for
+      # even though no user executes it.
+      - name: Audit all dependencies
+        run: pnpm audit --audit-level high
+
+      # Moderate findings across the full tree are reported without blocking.
+      # They are frequently advisories against build or test tooling whose fix is
+      # a major upgrade that cannot land the same day, and a gate that stays red
+      # for weeks is one people learn to ignore. The artifact keeps the backlog
+      # visible rather than suppressed.
+      - name: Report moderate findings
         continue-on-error: true
         run: |
           mkdir -p artifacts

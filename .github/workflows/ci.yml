@@ -11,7 +11,7 @@ jobs:
     name: Web Lint, Test & Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # pnpm comes from corepack, reading the version from package.json's
       # packageManager field - the same mechanism the Dockerfile uses, so the
       # image and CI cannot drift. pnpm/action-setup was doing this job until
@@ -20,7 +20,7 @@ jobs:
       # needs no third-party action. This runs before setup-node because the
       # 'pnpm' cache key resolves the store directory by invoking pnpm.
       - run: corepack enable && corepack install
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: 'pnpm'
@@ -32,7 +32,7 @@ jobs:
       - run: pnpm --filter @toolbox/web build
       - name: Verify Bundle Budgets
         run: node scripts/check-budgets.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: bundle-budget
@@ -43,13 +43,13 @@ jobs:
     name: Server Format, Test & Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27'
       # internal/docs validates and searches the shipped content pack, which is a
       # build product. Without it those tests skip; CI is where they must run.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: node scripts/build-core-pack.mjs
@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [web-quality, server-quality]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # pnpm comes from corepack, reading the version from package.json's
       # packageManager field - the same mechanism the Dockerfile uses, so the
       # image and CI cannot drift. pnpm/action-setup was doing this job until
@@ -81,11 +81,11 @@ jobs:
       # needs no third-party action. This runs before setup-node because the
       # 'pnpm' cache key resolves the store directory by invoking pnpm.
       - run: corepack enable && corepack install
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: 'pnpm'
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27'
       - run: pnpm install --frozen-lockfile
@@ -99,7 +99,7 @@ jobs:
       # this exercises the real response headers, CSP, SPA fallback and FTS5 search.
       - name: Run end-to-end suite
         run: pnpm --filter @toolbox/web e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
           name: playwright-report
@@ -111,13 +111,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: [server-quality]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27'
       # internal/docs validates and searches the shipped content pack, which is a
       # build product. Without it those tests skip; CI is where they must run.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: node scripts/build-core-pack.mjs
@@ -140,8 +140,8 @@ jobs:
       matrix:
         profile: [typesense, collaboration, ai]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27'
       # Each extension is exercised in isolation, as the Phase 4 plan requires.
@@ -153,17 +153,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: [web-quality, server-quality]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # The Dockerfile copies packs/core/docs.db from the build context, and the
       # pack is generated rather than tracked. node:sqlite needs Node 22.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: node scripts/build-core-pack.mjs
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           load: true
@@ -184,26 +184,26 @@ jobs:
           docker rm -f toolbox-ci
       - name: Measure runtime metrics
         run: ./scripts/measure-runtime.sh developer-toolbox:ci
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: runtime-metrics
           path: artifacts/runtime-metrics.json
           if-no-files-found: ignore
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           image: developer-toolbox:ci
           format: spdx-json
           output-file: artifacts/sbom.spdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: sbom
           path: artifacts/sbom.spdx.json
           if-no-files-found: ignore
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: developer-toolbox:ci
           format: 'table'

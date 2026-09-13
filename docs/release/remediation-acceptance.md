@@ -18,10 +18,11 @@ modules that no phase plan had scheduled.
 | Web unit tests | `vitest run` | **35 files, 517 tests passed** (was 24 / 104) |
 | MCP server tests | `pnpm --filter @toolbox/mcp-server test` | **24 passed** (was 3) |
 | VS Code tests | `pnpm --filter @toolbox/vscode test` | **16 passed** (was 0 — no test file existed) |
-| End-to-end | `playwright test` | **80 passed** (was 10) |
-| Bundle budgets | `node scripts/check-budgets.mjs` | Initial JS **12.95 KB** / 250 KB; CSS **3.19 KB** / 50 KB |
+| End-to-end | `playwright test` | **86 passed** (was 10) |
+| Bundle budgets | `node scripts/check-budgets.mjs` | Initial JS **12.95 KB** / 250 KB; CSS **3.52 KB** / 50 KB |
 | Docker build | `docker build -t developer-toolbox:complete .` | Success |
-| Image size | `docker images` | **17.6 MB** / 150 MB budget (was 30.4 MB) |
+| Image size | `docker images` | **18.5 MB** / 150 MB budget (was 30.4 MB) |
+| Container vulnerability scan | `trivy image` (CRITICAL,HIGH, `--ignore-unfixed`) | **0** against both the distroless base and the binary |
 | Plain `docker run -p` | `docker run -d -p 127.0.0.1:18090:8080 …` | Reachable; `/healthz` → `{"status":"ok"}` (previously unreachable) |
 | Application readiness | `./scripts/measure-runtime.sh` | **0.90–1.61 s** across four runs, against a 2.0 s budget |
 | Idle container RSS | same | **2.53–2.65 MiB** against a 60 MB budget |
@@ -301,9 +302,9 @@ to the implemented `TOOLBOX_FEATURE_COLLABORATION`.
 | `docker run` starts the application and is reachable | Live probe, plus a CI regression job | **Met** (was broken) |
 | Documentation searchable offline | 40 e2e tests incl. offline scenario; live FTS5 query with BM25 and `<mark>` snippets | Met |
 | No data leaves by default | `connect-src 'self'`; request policy tests; AI feature disabled by default and public-only when enabled | Met |
-| Core image small | 17.2 MB vs 150 MB | Met |
-| Idle RAM | 2.53–2.65 MiB vs 60 MB | Met |
-| Application ready within 2 s | 0.90–1.61 s measured over three runs | Met |
+| Core image small | 18.5 MB vs 150 MB | Met |
+| Idle RAM | 7.8 MiB on the CI runner vs 60 MB | Met |
+| Application ready within 2 s | 0.131 s measured in CI | Met |
 | Initial JS ≤ 250 KB gzip | 12.48 KB | Met |
 | Sensitive export warned/redacted | Redaction tests; e2e confirmation dialog | Met |
 | Anonymous localhost mode fully useful | Core-profile CI job; `TestCoreProfileRegistersNoExtensions` | Met |
@@ -316,20 +317,40 @@ to the implemented `TOOLBOX_FEATURE_COLLABORATION`.
 
 ## Known limitations and deferred scope
 
-1. **No SBOM was generated locally** — Syft is not installed on this machine; CI
-   produces one per image. `docs/legal/third-party-notices.md` has been rewritten and
-   now records every direct dependency with its resolved version, SPDX identifier and
-   copyright holder, separated into runtime, companion-package and build-time tiers,
-   plus a table of the independently implemented modules and why each upstream was not
-   reused.
+> **Limitations 1–3 are closed.** They were written while the Docker job had never
+> executed: it sat behind two jobs that failed within seconds of starting, so its
+> scanners were skipped on every run and this report could only say the tooling
+> "runs in CI" as an expectation. The blocking failures are fixed and the job now
+> completes, so the three items below record what the scanners actually found
+> rather than what they were expected to find.
 
-2. **Trivy and Syft were not run locally** — neither is installed on this machine. Both
-   run in CI.
+1. **SBOM — now generated.** Syft still is not installed locally, but the CI job
+   completes and uploads an SPDX document per image as a build artifact.
+   `docs/legal/third-party-notices.md` records every direct dependency with its
+   resolved version, SPDX identifier and copyright holder, separated into runtime,
+   companion-package and build-time tiers, plus a table of the independently
+   implemented modules and why each upstream was not reused.
 
-3. **`go test -race` was not run locally**: the race detector requires cgo, and this
-   Windows environment has no C toolchain on PATH. CI runs `go test -race ./...` on
-   Linux, and the collaboration hub's concurrency fixes are covered by a
-   concurrent broadcast/leave test that will exercise them there.
+2. **Trivy — now run, and it failed the build the first time.** Against
+   `CRITICAL,HIGH` with `--ignore-unfixed`, the first completing scan reported **19
+   HIGH vulnerabilities**, every one in the Go standard library linked into the
+   binary — the builder pinned `golang:1.24-alpine`, producing a binary on stdlib
+   v1.24.13. Among them were `crypto/x509` and `crypto/tls` denial of service in
+   certificate chain building, and `CVE-2026-25679`, incorrect parsing of IPv6 host
+   literals in `net/url`. Those three are directly reachable: JWKS verification
+   fetches an OIDC discovery document and key set over TLS from an operator-supplied
+   issuer, and enforces that `jwks_uri` is same-origin with it — a check only as
+   sound as the URL parser beneath it. The fixes span 1.25.8 to 1.26.4, so no 1.24
+   patch release cleared the set; the toolchain moved to 1.27 across `go.mod`, the
+   builder image and every CI job. Trivy now reports **0** against both the
+   distroless base (debian 13.6) and the binary.
+
+3. **`go test -race` — now run, and clean.** The race detector requires cgo and this
+   Windows environment has no C toolchain on PATH, so it still cannot run locally.
+   The Linux job executes `go test -race ./...` and reports no race across any
+   package, including the collaboration hub's concurrent broadcast/leave test. The
+   rate-limit and send-channel fixes described above are therefore verified rather
+   than argued.
 
 4. **White-paper items still not built.** These remain the honest remaining gap
    against the white paper's first-release scope:

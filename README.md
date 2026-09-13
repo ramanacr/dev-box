@@ -6,8 +6,8 @@ type generation, regex inspection, text transforms, API contract testing, diagra
 and interactive learning into a single local-first container.
 
 Everything you paste stays in your browser unless you explicitly send it somewhere.
-The container is **17.6 MB**, idles at **~2.6 MiB** of RAM, and is ready in **under
-two seconds**.
+The container is **18.5 MB**, idles at a few MiB of RAM, and is ready in **well
+under a second**.
 
 ## Tools
 
@@ -96,7 +96,10 @@ two seconds**.
   extract drawn as the tree the array represents; BST insert, in-order walk and
   search; and hash tables under separate chaining, linear probing and quadratic
   probing. Every step is an immutable snapshot, so you can step backwards freely.
-- **Theme switcher** — light, dark and system.
+- **Theme switcher** — light, dark and system. The dark theme is Metallic Radium:
+  cement surfaces with a single luminous accent, specified in
+  [`docs/design/metallic-radium-theme.md`](docs/design/metallic-radium-theme.md) and
+  recorded in [ADR 0008](docs/adr/0008-metallic-radium-dark-theme.md).
 
 ## Quick start
 
@@ -119,7 +122,7 @@ interface, so keep the `127.0.0.1:` prefix unless you intend otherwise.
 
 ## Local development
 
-Prerequisites: Node.js 22+, pnpm 12+, Go 1.24+.
+Prerequisites: Node.js 22+, pnpm 12+, Go 1.27+.
 
 ```bash
 pnpm install

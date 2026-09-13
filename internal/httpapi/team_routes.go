@@ -3,9 +3,12 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"developer-toolbox/internal/auth"
 	"developer-toolbox/internal/team"
@@ -290,6 +293,146 @@ func (h *TeamHandler) RegisterRoutes(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(pack)
 	})
+
+	h.registerAuditRoutes(mux)
+}
+
+// registerAuditRoutes mounts the audit trail read and export endpoints.
+//
+// Both require the manage-packs capability, which is the installation-wide admin
+// right rather than a per-workspace one. That is the correct gate: the trail spans
+// every workspace, so a workspace admin must not be able to read another team's
+// activity through it.
+func (h *TeamHandler) registerAuditRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/team/admin/audit", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		p, ok := h.requireAuditor(w, r)
+		if !ok {
+			return
+		}
+
+		query, err := parseAuditQuery(r)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		page, err := h.store.QueryAuditRecords(r.Context(), query)
+		if err != nil {
+			slog.Error("failed to query audit trail", "error", err, "actor", p.Subject)
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
+			return
+		}
+		if page.Records == nil {
+			page.Records = []team.AuditEntry{}
+		}
+		_ = json.NewEncoder(w).Encode(page)
+	})
+
+	mux.HandleFunc("GET /api/team/admin/audit.csv", func(w http.ResponseWriter, r *http.Request) {
+		p, ok := h.requireAuditor(w, r)
+		if !ok {
+			return
+		}
+
+		query, err := parseAuditQuery(r)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		filename := "audit-" + time.Now().UTC().Format("2006-01-02") + ".csv"
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+
+		// The status is already sent, so a mid-stream failure cannot be reported as
+		// an error code. It is logged instead, and the truncated download is the
+		// signal to the caller - which is why the export walks pages itself rather
+		// than trusting a caller-supplied cursor.
+		if err := h.store.WriteAuditCSV(r.Context(), query, w); err != nil {
+			slog.Error("audit export failed mid-stream", "error", err, "actor", p.Subject)
+		}
+	})
+}
+
+// requireAuditor authenticates the caller and checks the installation-wide admin
+// capability the audit trail requires.
+func (h *TeamHandler) requireAuditor(w http.ResponseWriter, r *http.Request) (auth.Principal, bool) {
+	p, ok := h.requirePrincipal(w, r)
+	if !ok {
+		return auth.Principal{}, false
+	}
+
+	if err := h.service.Authorize(r.Context(), p, "", team.ActionManagePacks); err != nil {
+		// Reading the audit trail is itself worth auditing, and a refused attempt
+		// is the entry a security team most wants to see.
+		slog.Warn("audit trail access denied", "actor", p.Subject, "path", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "forbidden"})
+		return auth.Principal{}, false
+	}
+	return p, true
+}
+
+// parseAuditQuery reads filters from the query string.
+//
+// An unparseable value is an error rather than a silently ignored filter. An
+// auditor who mistypes a date and gets the unfiltered trail back would have no
+// way to notice, and would draw conclusions from the wrong window.
+func parseAuditQuery(r *http.Request) (team.AuditQuery, error) {
+	params := r.URL.Query()
+	query := team.AuditQuery{
+		Actor:  params.Get("actor"),
+		Action: params.Get("action"),
+		Target: params.Get("target"),
+	}
+
+	for _, field := range []struct {
+		name string
+		dest *time.Time
+	}{
+		{"since", &query.Since},
+		{"until", &query.Until},
+	} {
+		raw := strings.TrimSpace(params.Get(field.name))
+		if raw == "" {
+			continue
+		}
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return team.AuditQuery{}, fmt.Errorf("invalid %s: expected RFC 3339, got %q", field.name, raw)
+		}
+		*field.dest = parsed
+	}
+
+	if !query.Since.IsZero() && !query.Until.IsZero() && !query.Until.After(query.Since) {
+		return team.AuditQuery{}, errors.New("until must be after since")
+	}
+
+	if raw := strings.TrimSpace(params.Get("limit")); raw != "" {
+		limit, err := strconv.Atoi(raw)
+		if err != nil || limit < 1 {
+			return team.AuditQuery{}, fmt.Errorf("invalid limit %q: must be a positive integer", raw)
+		}
+		query.Limit = limit
+	}
+
+	if raw := strings.TrimSpace(params.Get("cursor")); raw != "" {
+		cursor, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || cursor < 1 {
+			return team.AuditQuery{}, fmt.Errorf("invalid cursor %q", raw)
+		}
+		query.Cursor = cursor
+	}
+
+	return query, nil
 }
 
 // requirePrincipal resolves the bearer token and writes 401 when the request carries

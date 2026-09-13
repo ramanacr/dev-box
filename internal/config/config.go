@@ -63,6 +63,14 @@ type Config struct {
 	// and gateway routes derive a tighter limit from these.
 	RateLimitRPS   float64
 	RateLimitBurst float64
+
+	// AuditRetentionDays deletes audit records older than this many days. Zero
+	// means keep everything, which is the default: the service cannot know the
+	// operator's retention obligation, and a compliance regime setting a minimum
+	// is as likely as a privacy regime setting a maximum. Deleting evidence
+	// nobody asked to have deleted is the worse failure, so it never prunes
+	// unless told to.
+	AuditRetentionDays int
 }
 
 // Default settings as specified in the architecture document.
@@ -165,6 +173,14 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 		cfg.RateLimitRPS = rps
 	}
+	if val := strings.TrimSpace(getenv("TOOLBOX_AUDIT_RETENTION_DAYS")); val != "" {
+		days, err := strconv.Atoi(val)
+		if err != nil || days < 0 {
+			return Config{}, fmt.Errorf("invalid TOOLBOX_AUDIT_RETENTION_DAYS %q: must be a non-negative integer", val)
+		}
+		cfg.AuditRetentionDays = days
+	}
+
 	if val := strings.TrimSpace(getenv("TOOLBOX_RATE_LIMIT_BURST")); val != "" {
 		burst, err := strconv.ParseFloat(val, 64)
 		if err != nil || burst < 1 {

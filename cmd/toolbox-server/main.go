@@ -21,6 +21,54 @@ import (
 	"developer-toolbox/internal/team"
 )
 
+// startAuditRetention prunes audit records older than the configured window,
+// once at startup and daily thereafter. It returns a function that stops the
+// loop.
+//
+// It runs at startup as well as on the timer so that lowering the retention
+// window takes effect on the next restart rather than up to a day later, which
+// is what an operator reducing it in response to a privacy request expects.
+func startAuditRetention(store *team.Store, days int) func() {
+	const interval = 24 * time.Hour
+
+	prune := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+
+		cutoff := time.Now().UTC().AddDate(0, 0, -days)
+		deleted, err := store.PruneAuditRecords(ctx, cutoff)
+		if err != nil {
+			slog.Error("audit retention sweep failed", "error", err)
+			return
+		}
+		if deleted > 0 {
+			// Logged because deleting audit records is itself an auditable act.
+			slog.Info("audit retention sweep complete",
+				"deleted", deleted,
+				"cutoff", cutoff.Format(time.RFC3339),
+			)
+		}
+	}
+
+	prune()
+
+	done := make(chan struct{})
+	ticker := time.NewTicker(interval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				prune()
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	return func() { close(done) }
+}
+
 func main() {
 	// Bootstrap logger. The configured level is not known until config loads, and
 	// a failure to load has to be reportable, so this starts at info and is
@@ -118,6 +166,14 @@ func main() {
 		)
 	} else {
 		slog.Info("team mode disabled; running anonymous localhost profile")
+	}
+
+	// Audit retention. Only started when the operator set a cutoff: the service
+	// never deletes evidence on its own initiative.
+	if teamStore != nil && cfg.AuditRetentionDays > 0 {
+		stopPrune := startAuditRetention(teamStore, cfg.AuditRetentionDays)
+		defer stopPrune()
+		slog.Info("audit retention enabled", "days", cfg.AuditRetentionDays)
 	}
 
 	// Phase 4 extensions. Every one is off unless its TOOLBOX_FEATURE_<NAME> flag is

@@ -14,6 +14,12 @@ release.
 
 ### Added
 
+- `GET /api/team/admin/audit` and `GET /api/team/admin/audit.csv` expose the
+  audit trail with filtering by actor, action, target and time window, and
+  keyset paging that stays correct while new records are being written. Both
+  require the installation-wide admin capability.
+- `TOOLBOX_AUDIT_RETENTION_DAYS` prunes audit records older than the given
+  window, swept at startup and daily. Zero, the default, keeps everything.
 - Per-caller HTTP rate limiting on every route except `/healthz` and `/readyz`,
   which are never limited so an orchestrator cannot probe itself out of the
   cluster. Write and gateway routes (upload, AI, pack activation) are held to a

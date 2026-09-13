@@ -12,24 +12,44 @@ import (
 	"time"
 
 	"developer-toolbox/internal/auth"
+	"developer-toolbox/internal/buildinfo"
 	"developer-toolbox/internal/config"
 	"developer-toolbox/internal/docs"
 	"developer-toolbox/internal/features"
 	"developer-toolbox/internal/httpapi"
+	"developer-toolbox/internal/observability"
 	"developer-toolbox/internal/team"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
-	slog.Info("starting developer-toolbox server")
+	// Bootstrap logger. The configured level is not known until config loads, and
+	// a failure to load has to be reportable, so this starts at info and is
+	// replaced below.
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
 	cfg, err := config.Load(nil)
 	if err != nil {
 		slog.Error("failed to load configuration", "error", err)
 		os.Exit(1)
 	}
+
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: cfg.LogLevel,
+	})))
+
+	// Logged first, and at every start: when an operator files a report, this line
+	// is what identifies the build they are running.
+	info := buildinfo.Get()
+	slog.Info("starting developer-toolbox server",
+		"version", info.Version,
+		"commit", info.Commit,
+		"build_date", info.BuildDate,
+		"go_version", info.GoVersion,
+		"platform", info.Platform,
+	)
+
+	metrics := observability.NewRegistry()
+	observability.SetBuildInfo(metrics, info.Version, info.Commit, info.GoVersion)
 
 	packDir := filepath.Dir(cfg.DocsDBPath)
 	manifest, err := docs.ValidatePack(packDir)
@@ -68,7 +88,7 @@ func main() {
 	// Construct federated multi searcher
 	searcher := docs.Searcher(docs.NewMultiSearcher(coreSearcher, userStore))
 
-	serverOptions := []httpapi.Option{}
+	serverOptions := []httpapi.Option{httpapi.WithMetrics(metrics)}
 
 	// Team mode. Anonymous localhost operation never reaches this branch, so no
 	// workspace database is created and no identity subsystem is started.
@@ -120,6 +140,10 @@ func main() {
 		if cfg.FeatureEnabled(name) {
 			slog.Info("extension enabled", "name", name)
 		}
+	}
+
+	if cfg.MetricsEnabled {
+		slog.Info("metrics endpoint enabled", "path", "/metrics")
 	}
 
 	// Prepare static file assets

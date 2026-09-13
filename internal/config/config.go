@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -43,6 +44,16 @@ type Config struct {
 	// AIAllowedClassifications lists the data classes permitted to leave the
 	// installation. Empty means public-only; restricted data is never permitted.
 	AIAllowedClassifications []string
+
+	// MetricsEnabled exposes /metrics in Prometheus text format. On by default:
+	// the endpoint reports only counts and latencies of the service's own routes,
+	// never request content, and the default profile is loopback-only. An operator
+	// publishing the port on a shared network can set TOOLBOX_METRICS_ENABLED=false.
+	MetricsEnabled bool
+
+	// LogLevel is the minimum slog level emitted. Operators need to raise this to
+	// debug an incident and lower it afterwards without a rebuild.
+	LogLevel slog.Level
 }
 
 // Default settings as specified in the architecture document.
@@ -90,6 +101,25 @@ func parseBool(raw string) bool {
 	return v == "true" || v == "1"
 }
 
+// parseLogLevel maps the documented level names onto slog levels. An unrecognised
+// value is an error rather than a silent fallback to info: an operator who sets
+// TOOLBOX_LOG_LEVEL=verbose during an incident needs to be told it is not a level,
+// not to discover later that nothing changed.
+func parseLogLevel(raw string) (slog.Level, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "warn", "warning":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return 0, fmt.Errorf("invalid TOOLBOX_LOG_LEVEL %q: must be debug, info, warn or error", raw)
+	}
+}
+
 // Load reads configuration using the provided environment lookup function.
 func Load(getenv func(string) string) (Config, error) {
 	if getenv == nil {
@@ -102,6 +132,22 @@ func Load(getenv func(string) string) (Config, error) {
 		DocsDBPath:     DefaultDocsDBPath,
 		UserDocsDBPath: DefaultUserDocsDBPath,
 		WebRoot:        DefaultWebRoot,
+		MetricsEnabled: true,
+		LogLevel:       slog.LevelInfo,
+	}
+
+	// Opt-out rather than opt-in: an unobservable service is the worse default,
+	// and the endpoint carries no request content.
+	if val := strings.TrimSpace(getenv("TOOLBOX_METRICS_ENABLED")); val != "" {
+		cfg.MetricsEnabled = parseBool(val)
+	}
+
+	if val := strings.TrimSpace(getenv("TOOLBOX_LOG_LEVEL")); val != "" {
+		level, err := parseLogLevel(val)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.LogLevel = level
 	}
 
 	if val := strings.TrimSpace(getenv("TOOLBOX_BIND_ADDRESS")); val != "" {

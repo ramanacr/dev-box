@@ -16,6 +16,7 @@ import (
 	"developer-toolbox/internal/config"
 	"developer-toolbox/internal/docs"
 	"developer-toolbox/internal/extensions"
+	"developer-toolbox/internal/observability"
 	"developer-toolbox/internal/team"
 )
 
@@ -125,6 +126,11 @@ type Options struct {
 	// TeamValidator overrides the OIDC token validator built from the configuration.
 	// Used by tests and by deployments that pin signing keys out of band.
 	TeamValidator *auth.TokenValidator
+
+	// Metrics is the registry every request is recorded into. When nil the server
+	// creates its own, so a caller that does not care about metrics gets working
+	// instrumentation rather than a nil dereference.
+	Metrics *observability.Registry
 }
 
 // Option mutates server Options.
@@ -145,6 +151,12 @@ func WithTeamValidator(v *auth.TokenValidator) Option {
 	return func(o *Options) { o.TeamValidator = v }
 }
 
+// WithMetrics records requests into a registry the caller owns, so the process
+// can export build info and extension metrics into the same registry.
+func WithMetrics(reg *observability.Registry) Option {
+	return func(o *Options) { o.Metrics = reg }
+}
+
 // NewServer configures and returns the HTTP handler for the toolbox service.
 //
 // The three-argument form is the core, anonymous, localhost profile. Optional
@@ -156,6 +168,19 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS, opts ...
 		apply(&options)
 	}
 	mux := http.NewServeMux()
+
+	registry := options.Metrics
+	if registry == nil {
+		registry = observability.NewRegistry()
+	}
+
+	// Metrics endpoint. It reports counts and latencies of the service's own
+	// routes and never request content, so it carries nothing the local-first
+	// promise protects; an operator publishing the port on a shared network can
+	// still turn it off with TOOLBOX_METRICS_ENABLED=false.
+	if cfg.MetricsEnabled {
+		mux.Handle("GET /metrics", observability.Handler(registry))
+	}
 
 	// Liveness probe. It also reports the binary's identity, because this is the
 	// endpoint an operator or a support conversation already reaches for, and
@@ -486,8 +511,8 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS, opts ...
 		})
 	}
 
-	// Security headers and audit logging middleware
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Security headers and request logging.
+	logged := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
 		w.Header().Set("Content-Security-Policy", ContentSecurityPolicy)
@@ -502,12 +527,34 @@ func NewServer(cfg config.Config, searcher docs.Searcher, assets fs.FS, opts ...
 		mux.ServeHTTP(rw, r)
 
 		duration := time.Since(start)
-		// Structured log with method, path, status, and duration only (no query strings or request bodies)
-		slog.Info("http_request",
+
+		// Method, path, status and duration only: no query strings and no request
+		// bodies, because a documentation search query is user content and the
+		// local-first promise covers the log file too.
+		//
+		// The request id is the one addition. It is either the operator's own from
+		// an upstream proxy or one generated here, it is echoed in the response
+		// header, and it is what turns a log line into something a support
+		// conversation can act on. trace_id appears only when the caller sent a
+		// valid W3C traceparent, so entries line up with spans from services that
+		// do emit traces.
+		attrs := []any{
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rw.status,
 			"duration_ms", duration.Milliseconds(),
-		)
+		}
+		if id := observability.RequestIDFrom(r.Context()); id != "" {
+			attrs = append(attrs, "request_id", id)
+		}
+		if traceID := observability.TraceIDFrom(r.Context()); traceID != "" {
+			attrs = append(attrs, "trace_id", traceID)
+		}
+		slog.Info("http_request", attrs...)
 	})
+
+	// Instrumentation is the outermost layer so it observes everything the logging
+	// middleware does, including responses that never reach the mux, and so the
+	// request id it assigns is already on the context by the time anything logs.
+	return observability.Instrument(registry, logged)
 }

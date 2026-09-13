@@ -503,3 +503,81 @@ func TestSourcesEndpoint(t *testing.T) {
 		t.Error("expected the user source to be listed after an upload")
 	}
 }
+
+// TestMetricsEndpointExposesRequests covers the wiring end to end: a request goes
+// through the instrumentation, and the scrape reflects it.
+func TestMetricsEndpointExposesRequests(t *testing.T) {
+	cfg := config.Config{MetricsEnabled: true}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	srv.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /metrics, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `toolbox_http_requests_total{method="GET",route="/healthz",status="200"} 1`) {
+		t.Errorf("health request not recorded:\n%s", body)
+	}
+	if !strings.Contains(body, "toolbox_http_request_duration_seconds_bucket") {
+		t.Errorf("duration histogram missing:\n%s", body)
+	}
+}
+
+// TestMetricsCanBeDisabled covers the opt-out an operator needs when the port is
+// published somewhere less private than loopback.
+func TestMetricsCanBeDisabled(t *testing.T) {
+	cfg := config.Config{MetricsEnabled: false}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if rec.Code == http.StatusOK {
+		t.Error("/metrics must not be served when disabled")
+	}
+}
+
+// TestRequestIDOnEveryResponse is the correlation contract an operator relies on
+// when correlating a user's report with the log stream.
+func TestRequestIDOnEveryResponse(t *testing.T) {
+	cfg := config.Config{}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	if rec.Header().Get("X-Request-Id") == "" {
+		t.Error("every response must carry a request id")
+	}
+
+	// A 404 goes nowhere near a handler, so it is the case most likely to miss
+	// the header if instrumentation were mounted inside the mux.
+	rec404 := httptest.NewRecorder()
+	srv.ServeHTTP(rec404, httptest.NewRequest(http.MethodGet, "/no/such/path", nil))
+	if rec404.Header().Get("X-Request-Id") == "" {
+		t.Error("a 404 must still carry a request id")
+	}
+}
+
+// TestMetricsDoNotLeakSearchQueries guards the local-first promise: what a user
+// types into the search box must not reach the metrics endpoint, which is the one
+// surface designed to be scraped off the machine.
+func TestMetricsDoNotLeakSearchQueries(t *testing.T) {
+	cfg := config.Config{MetricsEnabled: true}
+	srv := NewServer(cfg, &mockSearcher{}, nil)
+
+	const secret = "my-unreleased-project-codename"
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/search?q="+secret, nil)
+	srv.ServeHTTP(httptest.NewRecorder(), req)
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if strings.Contains(rec.Body.String(), secret) {
+		t.Errorf("search query leaked into metrics:\n%s", rec.Body.String())
+	}
+}

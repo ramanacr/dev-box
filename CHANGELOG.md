@@ -14,6 +14,18 @@ release.
 
 ### Added
 
+- A `/metrics` endpoint in Prometheus text exposition format, covering request
+  counts, duration and response-size histograms, in-flight gauge and build info.
+  Enabled by default; `TOOLBOX_METRICS_ENABLED=false` turns it off. Route labels
+  come from a bounded allowlist, so a document or workspace id in the path can
+  never mint a new time series.
+- A request id on every response (`X-Request-Id`) and every request log line. An
+  id supplied by an upstream proxy is preferred over a generated one, so a request
+  can be followed across the whole hop chain. A valid W3C `traceparent` also
+  contributes `trace_id` to the log line.
+- `TOOLBOX_LOG_LEVEL` (`debug`, `info`, `warn`, `error`) so an operator can raise
+  log verbosity during an incident without a rebuild. An unrecognised value is
+  rejected at startup rather than silently ignored.
 - Build identity is stamped into the binary at link time and reported on
   `/healthz` as `version`, `commit`, `build_date`, `go_version` and `platform`.
   An unstamped build reports `dev` rather than inventing a version number, so a

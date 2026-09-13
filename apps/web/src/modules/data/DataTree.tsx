@@ -57,7 +57,7 @@ function TreeNode({ label, value, depth }: TreeNodeProps) {
       displayVal = `"${value}"`;
       color = 'var(--success-color)';
     } else if (typeof value === 'number') {
-      color = '#60a5fa';
+      color = 'var(--info-color)';
     } else if (typeof value === 'boolean') {
       color = 'var(--warning-color)';
     } else if (value === null) {

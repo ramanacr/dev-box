@@ -8,6 +8,33 @@ export interface OperationListProps {
   onFilterChange: (text: string) => void;
 }
 
+/**
+ * Maps an HTTP method to a status token.
+ *
+ * The tint and border carry the colour; the label itself stays --text-primary.
+ * Coral on a coral-tinted ground only reaches 3.2:1, because tinting the
+ * background with the same hue raises its luminance as fast as the text's - so
+ * colouring the text would have failed AA for DELETE at any tint strength. The
+ * method name is written out anyway, so nothing here depends on colour alone.
+ *
+ * Returning a token rather than a literal keeps the badges on the theme in both
+ * light and dark mode. Read is success, create is informational, delete is
+ * destructive, and everything that mutates in place is a warning.
+ */
+function methodColor(method: string): string {
+  switch (method.toLowerCase()) {
+    case 'get':
+    case 'head':
+      return 'var(--success-color)';
+    case 'post':
+      return 'var(--info-color)';
+    case 'delete':
+      return 'var(--danger-color)';
+    default:
+      return 'var(--warning-color)';
+  }
+}
+
 export function OperationList({
   operations,
   selectedId,
@@ -92,8 +119,9 @@ export function OperationList({
                     textTransform: 'uppercase',
                     padding: '2px 6px',
                     borderRadius: '3px',
-                    backgroundColor: op.method === 'get' ? '#10b981' : op.method === 'post' ? '#3b82f6' : op.method === 'delete' ? '#ef4444' : '#f59e0b',
-                    color: '#fff',
+                    backgroundColor: `color-mix(in srgb, ${methodColor(op.method)} 22%, transparent)`,
+                    color: 'var(--text-primary)',
+                    border: `1px solid color-mix(in srgb, ${methodColor(op.method)} 45%, transparent)`,
                     minWidth: '45px',
                     textAlign: 'center',
                   }}

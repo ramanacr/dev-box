@@ -177,7 +177,7 @@ export function DocsUploadModal({
               backgroundColor: 'rgba(239, 68, 68, 0.15)',
               border: '1px solid var(--danger-color)',
               borderRadius: 'var(--radius-md)',
-              color: '#fca5a5',
+              color: 'var(--danger-color)',
               marginBottom: '1rem',
               fontSize: '0.85rem',
             }}

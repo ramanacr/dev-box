@@ -92,7 +92,7 @@ export function DiagramPage() {
       </div>
 
       {saveMessage && (
-        <div style={{ fontSize: '0.85rem', color: 'var(--color-success, #10b981)' }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--color-success)' }}>
           ✓ {saveMessage}
         </div>
       )}

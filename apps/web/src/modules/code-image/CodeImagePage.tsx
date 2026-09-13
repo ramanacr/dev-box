@@ -83,7 +83,7 @@ console.log("Fibonacci:", result);`);
       </div>
 
       {error && (
-        <div role="alert" style={{ padding: '12px 16px', background: 'rgba(248, 113, 113, 0.15)', border: '1px solid var(--danger-color)', borderRadius: 'var(--radius-md)', color: '#fca5a5', marginBottom: '1rem', fontSize: '0.9rem' }}>
+        <div role="alert" style={{ padding: '12px 16px', background: 'color-mix(in srgb, var(--danger-color) 15%, transparent)', border: '1px solid var(--danger-color)', borderRadius: 'var(--radius-md)', color: '#fca5a5', marginBottom: '1rem', fontSize: '0.9rem' }}>
           {error}
         </div>
       )}

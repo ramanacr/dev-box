@@ -38,7 +38,14 @@ export default defineConfig({
           // pack, so no Docker daemon is required to run the suite.
           command: 'node ./scripts/start-e2e-server.mjs',
           url: `${baseURL}/readyz`,
-          reuseExistingServer: !process.env.CI,
+          // Never adopt a process that happens to hold the port. The default
+          // port is the one the Docker container publishes, so reusing an
+          // existing server meant a local run silently tested whatever image
+          // was running rather than the build just produced - a deliberate
+          // regression in the stylesheet passed the whole suite that way.
+          // Point PLAYWRIGHT_NO_SERVER=1 at a running instance when that is
+          // what you actually want to test.
+          reuseExistingServer: false,
           timeout: 120_000,
           stdout: 'pipe',
           stderr: 'pipe',

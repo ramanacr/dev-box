@@ -178,6 +178,28 @@ Requires `TOOLBOX_TEAM_MODE=true`, `TOOLBOX_OIDC_ISSUER` and
 authorization-code flow with PKCE. See
 [docs/operations/team-mode.md](docs/operations/team-mode.md).
 
+### Operating it
+
+The service reports on itself and can be throttled and audited without a rebuild.
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `TOOLBOX_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. An unrecognised value fails startup rather than being ignored. |
+| `TOOLBOX_METRICS_ENABLED` | `true` | Serves `/metrics` in Prometheus text format. |
+| `TOOLBOX_RATE_LIMIT_ENABLED` | `true` | Per-caller throttling on every route except the health probes. |
+| `TOOLBOX_RATE_LIMIT_RPS` / `_BURST` | `50` / `100` | Read-route budget. Writes and gateways derive a tighter limit. |
+| `TOOLBOX_AUDIT_RETENTION_DAYS` | `0` | Prunes audit records older than this. `0` keeps everything. |
+
+`GET /healthz` reports the running version, commit and build date, so an operator
+never has to guess which build they are on. Every response carries `X-Request-Id`,
+echoing an upstream one where the caller sent it, and the same id appears on the
+request log line. In team mode the audit trail is readable and exportable at
+`/api/team/admin/audit` and `/api/team/admin/audit.csv`.
+
+Full detail, including cardinality rules, example PromQL and the audit paging
+contract, is in
+[docs/operations/observability.md](docs/operations/observability.md).
+
 ### Extensions
 
 | Flag | Effect |

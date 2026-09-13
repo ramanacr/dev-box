@@ -1,5 +1,5 @@
 # Stage 1: Build Web UI
-FROM node:22-alpine AS web-builder
+FROM node:26-alpine AS web-builder
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@12.3.4 --activate
 # Copy every workspace manifest plus the lockfile before the sources so that

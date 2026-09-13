@@ -11,7 +11,7 @@ jobs:
     name: Web Lint, Test & Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # pnpm comes from corepack, reading the version from package.json's
       # packageManager field - the same mechanism the Dockerfile uses, so the
       # image and CI cannot drift. pnpm/action-setup was doing this job until
@@ -43,7 +43,7 @@ jobs:
     name: Server Format, Test & Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27'
@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [web-quality, server-quality]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # pnpm comes from corepack, reading the version from package.json's
       # packageManager field - the same mechanism the Dockerfile uses, so the
       # image and CI cannot drift. pnpm/action-setup was doing this job until
@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [server-quality]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27'
@@ -140,7 +140,7 @@ jobs:
       matrix:
         profile: [typesense, collaboration, ai]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27'
@@ -152,7 +152,7 @@ jobs:
     name: Dependency Vulnerabilities
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27'
@@ -214,7 +214,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [web-quality, server-quality]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The Dockerfile copies packs/core/docs.db from the build context, and the
       # pack is generated rather than tracked. node:sqlite needs Node 22.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4

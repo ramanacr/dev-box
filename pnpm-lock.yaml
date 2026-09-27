@@ -130,15 +130,15 @@ importers:
         specifier: ^10.26.4
         version: 10.29.8
       yaml:
-        specifier: ^2.7.0
-        version: 2.9.0
+        specifier: ^2.9.1
+        version: 2.9.1
     devDependencies:
       '@playwright/test':
         specifier: ^1.51.0
         version: 1.63.0
       '@preact/preset-vite':
         specifier: ^2.10.1
-        version: 2.10.6(@babel/core@7.29.7(supports-color@7.2.0))(preact@10.29.8)(rollup@4.63.1)(supports-color@7.2.0)(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))
+        version: 2.10.6(@babel/core@7.29.7(supports-color@7.2.0))(preact@10.29.8)(rollup@4.63.1)(supports-color@7.2.0)(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))
       '@testing-library/preact':
         specifier: ^3.2.4
         version: 3.2.4(preact@10.29.8)
@@ -159,22 +159,22 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^6.2.0
-        version: 6.4.3(@types/node@22.20.2)(yaml@2.9.0)
+        version: 6.4.3(@types/node@22.20.2)(yaml@2.9.1)
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))
+        version: 4.1.11(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))
 
   packages/mcp-server:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^1.30.0
-        version: 1.30.0(supports-color@7.2.0)(zod@4.6.2)
+        specifier: ^1.30.1
+        version: 1.30.1(supports-color@7.2.0)(zod@4.6.5)
       yaml:
-        specifier: ^2.7.0
-        version: 2.9.0
+        specifier: ^2.9.1
+        version: 2.9.1
       zod:
-        specifier: ^4.6.2
-        version: 4.6.2
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@types/node':
         specifier: ^22.13.9
@@ -184,7 +184,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))
+        version: 4.1.11(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))
 
   packages/vscode:
     devDependencies:
@@ -196,7 +196,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))
+        version: 4.1.11(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))
 
 packages:
 
@@ -524,8 +524,8 @@ packages:
   '@mermaid-js/parser@1.2.1':
     resolution: {integrity: sha512-n12NohV3mrUyUL2o93IgG/ifeW9FTyeJn3zDxkhwa8MJ9Fxg3HQMlA3RiGmD/3UnJvheztkjjQAjA2T4LmUcpw==}
 
-  '@modelcontextprotocol/sdk@1.30.0':
-    resolution: {integrity: sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA==}
+  '@modelcontextprotocol/sdk@1.30.1':
+    resolution: {integrity: sha512-H2HxLvC3HDNybePJaLdSrU1hhUK5iQw+WvV1b01myFyI7sdVGe1u/IPTE5D9fGCiJDVtgMV/lmFkQXLmQyIFYA==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -2191,8 +2191,8 @@ packages:
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
-  yaml@2.9.0:
-    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
     engines: {node: '>= 14.6'}
     hasBin: true
 
@@ -2204,8 +2204,8 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
-  zod@4.6.2:
-    resolution: {integrity: sha512-lh5RCAGFa1Cm2hjtNwLQhSs/AsqdWnTQaBER9fEwN/88pSh7KOtJavtBx/0VlkN/uFd61SwYmljLMDAsHlvzBQ==}
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
 snapshots:
 
@@ -2490,7 +2490,7 @@ snapshots:
     dependencies:
       '@chevrotain/types': 11.1.2
 
-  '@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@4.6.2)':
+  '@modelcontextprotocol/sdk@1.30.1(supports-color@7.2.0)(zod@4.6.5)':
     dependencies:
       '@hono/node-server': 2.1.1(hono@4.13.7)
       ajv: 8.20.0
@@ -2507,8 +2507,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.6.2
-      zod-to-json-schema: 3.25.2(zod@4.6.2)
+      zod: 4.6.5
+      zod-to-json-schema: 3.25.2(zod@4.6.5)
     transitivePeerDependencies:
       - supports-color
 
@@ -2521,19 +2521,19 @@ snapshots:
     dependencies:
       playwright: 1.63.0
 
-  '@preact/preset-vite@2.10.6(@babel/core@7.29.7(supports-color@7.2.0))(preact@10.29.8)(rollup@4.63.1)(supports-color@7.2.0)(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))':
+  '@preact/preset-vite@2.10.6(@babel/core@7.29.7(supports-color@7.2.0))(preact@10.29.8)(rollup@4.63.1)(supports-color@7.2.0)(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))':
     dependencies:
       '@babel/core': 7.29.7(supports-color@7.2.0)
       '@babel/plugin-transform-react-jsx': 7.29.7(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0)
       '@babel/plugin-transform-react-jsx-development': 7.29.7(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0)
-      '@prefresh/vite': 2.4.12(preact@10.29.8)(supports-color@7.2.0)(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))
+      '@prefresh/vite': 2.4.12(preact@10.29.8)(supports-color@7.2.0)(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))
       '@rollup/pluginutils': 5.4.0(rollup@4.63.1)
       babel-plugin-transform-hook-names: 1.0.2(@babel/core@7.29.7(supports-color@7.2.0))
       debug: 4.4.3(supports-color@7.2.0)
       magic-string: 0.30.21
       picocolors: 1.1.1
-      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.0)
-      vite-prerender-plugin: 0.5.13(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))
+      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.1)
+      vite-prerender-plugin: 0.5.13(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))
       zimmerframe: 1.1.5
     transitivePeerDependencies:
       - preact
@@ -2548,7 +2548,7 @@ snapshots:
 
   '@prefresh/utils@1.2.1': {}
 
-  '@prefresh/vite@2.4.12(preact@10.29.8)(supports-color@7.2.0)(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))':
+  '@prefresh/vite@2.4.12(preact@10.29.8)(supports-color@7.2.0)(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))':
     dependencies:
       '@babel/core': 7.29.7(supports-color@7.2.0)
       '@prefresh/babel-plugin': 0.5.3
@@ -2556,7 +2556,7 @@ snapshots:
       '@prefresh/utils': 1.2.1
       '@rollup/pluginutils': 4.2.1
       preact: 10.29.8
-      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.0)
+      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -2821,13 +2821,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.11(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))':
+  '@vitest/mocker@4.1.11(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.0)
+      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.1)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -4111,7 +4111,7 @@ snapshots:
 
   vary@1.1.2: {}
 
-  vite-prerender-plugin@0.5.13(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0)):
+  vite-prerender-plugin@0.5.13(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1)):
     dependencies:
       kolorist: 1.8.0
       magic-string: 0.30.21
@@ -4119,9 +4119,9 @@ snapshots:
       simple-code-frame: 1.3.0
       source-map: 0.7.6
       stack-trace: 1.0.0
-      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.0)
+      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.1)
 
-  vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0):
+  vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.7)
@@ -4132,12 +4132,12 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.20.2
       fsevents: 2.3.3
-      yaml: 2.9.0
+      yaml: 2.9.1
 
-  vitest@4.1.11(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0)):
+  vitest@4.1.11(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.0))
+      '@vitest/mocker': 4.1.11(vite@6.4.3(@types/node@22.20.2)(yaml@2.9.1))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -4154,7 +4154,7 @@ snapshots:
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.0)
+      vite: 6.4.3(@types/node@22.20.2)(yaml@2.9.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.20.2
@@ -4225,12 +4225,12 @@ snapshots:
 
   yallist@3.1.1: {}
 
-  yaml@2.9.0: {}
+  yaml@2.9.1: {}
 
   zimmerframe@1.1.5: {}
 
-  zod-to-json-schema@3.25.2(zod@4.6.2):
+  zod-to-json-schema@3.25.2(zod@4.6.5):
     dependencies:
-      zod: 4.6.2
+      zod: 4.6.5
 
-  zod@4.6.2: {}
+  zod@4.6.5: {}
